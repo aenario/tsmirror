@@ -11,7 +11,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@tsmirror/reflect": "0.0.1",
+    "@tsmirror/reflect": "^0.0.1",
     "blns": "^2.0.4"
   },
   "files": [
