@@ -1,0 +1,7 @@
+/node_modules
+/packages/*/node_modules
+/packages/*/lib
+/packages/*/src/*.js
+/packages/*/src/*.d.ts
+*.log
+.ts-node
