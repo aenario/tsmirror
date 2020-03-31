@@ -1,0 +1,24 @@
+{
+  "name": "@tsmirror/di",
+  "version": "0.0.1",
+  "description": "Toy Dependency injection container based on @tsmirror/reflect",
+  "author": "Romain <aenario@gmail.com>",
+  "homepage": "",
+  "license": "MIT",
+  "main": "lib/container.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "dependencies": {
+    "@tsmirror/reflect": "0.0.1",
+    "blns": "^2.0.4"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "mocha --require ../../tsnoderegister.js --recursive  test/**/*.test.ts",
+    "build": "tsc"
+  }
+}
