@@ -1,0 +1,45 @@
+{
+  "name": "@tsmirror/reflect",
+  "version": "0.0.1",
+  "description": "Typescript runtime inspection",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "mocha --require ../../tsnoderegister --recursive  test/**/*.test.ts",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aenario/ts-transformer-reflect.git"
+  },
+  "keywords": [
+    "typescript",
+    "ast",
+    "transform",
+    "json",
+    "compiler"
+  ],
+  "author": "Romain Foucault <aenario@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/aenario/ts-transformer-reflect/issues"
+  },
+  "homepage": "https://github.com/aenario/ts-transformer-reflect#readme",
+  "dependencies": {
+    "typescript": "^3.8.3"
+  },
+  "devDependencies": {
+    "reflect-metadata": "^0.1.13",
+    "@types/chai": "^4.1.7",
+    "@types/fs-extra": "8",
+    "@types/glob": "^7.1.1",
+    "@types/mocha": "^5.2.6",
+    "@types/node": "12",
+    "chai": "^4.2.0",
+    "fs-extra": "8",
+    "glob": "^7.1.4",
+    "mocha": "6",
+    "pre-commit": "^1.2.2",
+    "prettier": "^1.17.1",
+    "ts-node": "^8.1.0"
+  }
+}
