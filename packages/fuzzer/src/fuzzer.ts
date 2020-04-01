@@ -21,7 +21,7 @@ const cart2 = <T, U, V>(a1: T[], a2: U[], mapper: twoMapper<T, U, V>) : V[][] =>
 }
 */
 
-export const possibleValues = (type: ReflectType): any[] => {
+export function possibleValues(type: ReflectType): any[] {
     switch (type.kind) {
         case Kind.Undefined: return [undefined]
         case Kind.Null: return [null]
