@@ -19,6 +19,7 @@
     "typescript": "^3.8.3"
   },
   "scripts": {
+    "bootstrap": "lerna bootsrap",
     "build": "lerna run build",
     "test": "lerna run test"
   }
