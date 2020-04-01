@@ -1,39 +1,23 @@
-# `@tsmirror/di`
+# `@tsmirror/graphql`
 
-Toy dependency injection container.
+Generate graphql from typescript types.
 
 ## Usage
 
 ```ts
-import { reflected } from "@tsmirror/reflect";
-import { makeContainer } from "../src/container";
-
-interface Padawan {
-  name: string;
-  isYoung: true;
-  fullyTrained: false;
-}
-
 interface Jedi {
-  name: string;
-  isYoung: false;
-  fullyTrained: true;
+    master: Jedi,
+    name: string | null,
+    fullyTrained: boolean
 }
 
-function yodaTraining(p: Padawan): Jedi {
-  return { name: p.name, isYoung: false, fullyTrained: true };
+const APIDefinition = {
+    queries: {
+        jedis: (limit = 50): Jedi[] => limit > 10 ? []:[]
+    },
+    mutations: {
+        createJedi: (j: Jedi) => j
+    }
 }
-
-function obiwanRecruiting() : Padawan {
-    return { name: "Luke", isYoung: true, fullyTrained: false }
-}
-
-const di = makeContainer();
-di.register(reflected(yodaTraining));
-di.register(reflected(obiwanRecruiting));
-di.get(
-  reflected(function saveTheGalaxy(p: Jedi) {
-    console.log(p);
-  })
-);
+const {client, schema} = graphql(reflected(APIDefinition))
 ```

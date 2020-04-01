@@ -3,7 +3,6 @@
   "version": "0.0.1",
   "description": "Fuzzer based on @tsmirror/reflect",
   "author": "Romain <aenario@gmail.com>",
-  "homepage": "",
   "license": "MIT",
   "main": "lib/fuzzer.js",
   "directories": {
@@ -20,5 +19,13 @@
   "scripts": {
     "test": "mocha --require ../../tsnoderegister.js --recursive  test/**/*.test.ts",
     "build": "tsc"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aenario/tsmirror/"
+  },
+  "bugs": {
+    "url": "https://github.com/aenario/tsmirror/issues"
+  },
+  "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/di#readme"
 }

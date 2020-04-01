@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aenario/ts-transformer-reflect.git"
+    "url": "git+https://github.com/aenario/tsmirror/"
   },
   "keywords": [
     "typescript",
@@ -21,9 +21,9 @@
   "author": "Romain Foucault <aenario@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/aenario/ts-transformer-reflect/issues"
+    "url": "https://github.com/aenario/tsmirror/issues"
   },
-  "homepage": "https://github.com/aenario/ts-transformer-reflect#readme",
+  "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/reflect#readme",
   "dependencies": {
     "typescript": "^3.8.3"
   },
