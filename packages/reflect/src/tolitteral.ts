@@ -1,5 +1,6 @@
 import * as ts from "typescript"
 import { Y, circularHandler } from "./circular"
+import { Kind } from "./type"
 
 
 // toLitteral take any object and transforms it into a typescript Expression
@@ -26,18 +27,36 @@ function _toLiteral(toLiteral: ToLiteral, x: any): ts.Expression {
     if (t == 'object' && Array.isArray(x))
         return ts.createArrayLiteral(x.map(toLiteral))
 
-    if (t == 'object' && x.runTypeInjectReferenceName)
+    if (t == 'object' && x.runTypeInjectReferenceName) {
+        console.log('identifier', x.runTypeInjectReferenceName)
         return ts.createIdentifier(x.runTypeInjectReferenceName)
+    }
 
     if (t == 'object')
         return ts.createObjectLiteral(
             Object.keys(x)
-                .filter((k) => typeof x[k] != 'undefined')
+                .filter((k) => k !== 'reflecttypeid' && typeof x[k] != 'undefined')
                 .map((k) => ts.createPropertyAssignment(k, toLiteral(x[k])))
         )
 
     throw new Error('dont know how to literalize ' + x)
 }
+
+const NOMEMOTYPES = [
+    Kind.Any,
+    Kind.Unknown,
+    Kind.String,
+    Kind.Number,
+    Kind.BooleanLiteral,
+    Kind.Boolean,
+    Kind.Enum,
+    Kind.BigInt,
+    Kind.ESSymbol,
+    Kind.Void,
+    Kind.Undefined,
+    Kind.Null,
+    Kind.Never,
+]
 
 export function toLitteral(x: any): ts.Expression {
 
@@ -45,8 +64,8 @@ export function toLitteral(x: any): ts.Expression {
     const identifiers: Map<string, ts.Expression> = new Map()
 
     let res = Y(circularHandler({
-        shouldMemo: (x: any) => (typeof x === 'object') && x.hasOwnProperty('kind'),
-        keyMaker: (x) => x,
+        shouldMemo: (x: any) => (typeof x === 'object') && x && x.reflecttypeid && x.hasOwnProperty('kind') && -1 === NOMEMOTYPES.indexOf(x.kind) ,
+        keyMaker: (x) => x.reflecttypeid,
         circularMarker: () => ts.createIdentifier('var' + (nameCounter++)),
         replaceMarker: (x: ts.Identifier, res: ts.Expression) => { identifiers.set(x.text, res) }
     }, _toLiteral))(x)

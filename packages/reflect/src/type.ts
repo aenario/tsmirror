@@ -12,7 +12,7 @@ export enum Kind {
     EnumLiteral = "enumliteral",
     BigIntLiteral = "bigintliteral",
     ESSymbol = "essymbol",
-    // UniqueESSymbol = "uniqueessymbol",
+    UniqueESSymbol = "uniqueessymbol",
     Void = "void",
     Undefined = "undefined",
     Null = "null",
@@ -21,11 +21,11 @@ export enum Kind {
     Object = "object",
     Union = "union",
     Intersection = "intersection",
-    // Index = "index",
-    // IndexedAccess = "indexedaccess",
-    // Conditional = "conditional",
-    // Substitution = "substitution",
-    // NonPrimitive = "nonprimitive",
+    Index = "index",
+    IndexedAccess = "indexedaccess",
+    Conditional = "conditional",
+    Substitution = "substitution",
+    NonPrimitive = "nonprimitive",
 
     Function = "function",
     Class = "class",
@@ -43,109 +43,124 @@ interface BaseNameAndType<InjectedReference> {
     default?: BaseReflectType<InjectedReference>
 }
 
+interface Common { reflecttypeid: number, kind: Kind }
+
 // Scalar types
-interface AnyType { kind: Kind.Any }
-interface UnknownType { kind: Kind.Unknown }
-interface StringType { kind: Kind.String }
-interface NumberType { kind: Kind.Number }
-interface BooleanType { kind: Kind.Boolean }
-interface VoidType { kind: Kind.Void }
-interface UndefinedType { kind: Kind.Undefined }
-interface NullType { kind: Kind.Null }
-interface NeverType { kind: Kind.Never }
-interface BigIntType { kind: Kind.BigInt }
+interface AnyType extends Common { kind: Kind.Any }
+interface UnknownType extends Common { kind: Kind.Unknown }
+interface StringType extends Common { kind: Kind.String }
+interface NumberType extends Common { kind: Kind.Number }
+interface BooleanType extends Common { kind: Kind.Boolean }
+interface VoidType extends Common { kind: Kind.Void }
+interface UndefinedType extends Common { kind: Kind.Undefined }
+interface NullType extends Common { kind: Kind.Null }
+interface NeverType extends Common { kind: Kind.Never }
+interface BigIntType extends Common { kind: Kind.BigInt }
 
 // TODO: probably need more test
-interface TypeParameterType { kind: Kind.TypeParameter, name: string }
+interface TypeParameterType extends Common { kind: Kind.TypeParameter, name: string }
 
 // Literal types
-interface StringLiteralType { kind: Kind.StringLiteral, value: string }
-interface NumberLiteralType { kind: Kind.NumberLiteral, value: number }
-interface BooleanLiteralType { kind: Kind.BooleanLiteral, value: boolean }
-interface BigIntLiteralType {
-    kind: Kind.BigIntLiteral, value: {
-        negative: boolean;
-        base10Value: string;
-    }
+
+interface Literal extends Common { value: any }
+interface StringLiteralType extends Literal { kind: Kind.StringLiteral, value: string }
+interface NumberLiteralType extends Literal { kind: Kind.NumberLiteral, value: number }
+interface BooleanLiteralType extends Literal { kind: Kind.BooleanLiteral, value: boolean }
+interface BigIntLiteralType extends Literal {
+    kind: Kind.BigIntLiteral,
+    value: { negative: boolean; base10Value: string; }
 }
 
-// TODO: test & see what to add
-interface ESSymbolType { kind: Kind.ESSymbol, value: symbol }
 
-// interface UniqueESSymbolType { kind: Kind.UniqueESSymbol, value: symbol }
+// TODO: can we get a symbol name ?
+interface ESSymbolType extends Common { kind: Kind.ESSymbol }
+interface UniqueESSymbolType extends Common { kind: Kind.UniqueESSymbol }
 
-interface EnumType {
+interface EnumType extends Common {
     kind: Kind.Enum,
     name: string
     names: string[],
     values: string[] | number[]
 }
-interface EnumLiteralType {
+interface EnumLiteralType extends Common {
     kind: Kind.EnumLiteral,
     valueName: string,
     value: any
 }
-interface Signature<InjectedReference> {
-    parameters: BaseNameAndType<InjectedReference>[],
-    returnType: BaseReflectType<InjectedReference>
+
+interface Signature<Refs> {
+    parameters: BaseNameAndType<Refs>[],
+    returnType: BaseReflectType<Refs>
 }
-interface FunctionLike<InjectedReference> {
+interface FunctionLike<Refs> extends Common {
     name: string,
-    signatures: Signature<InjectedReference>[]
+    signatures: Signature<Refs>[]
 }
-interface ObjectLike<InjectedReference> {
-    typeArguments?: BaseReflectType<InjectedReference>[]
-    members: BaseNameAndType<InjectedReference>[],
+interface ObjectLike<Refs> extends Common {
+    typeArguments?: BaseReflectType<Refs>[]
+    members: BaseNameAndType<Refs>[],
 }
 
 // Todo: handle this argument
-interface FunctionType<InjectedReference> extends FunctionLike<InjectedReference> { kind: Kind.Function }
-interface ClassType<InjectedReference> extends ObjectLike<InjectedReference> {
+interface FunctionType<Refs> extends FunctionLike<Refs> { kind: Kind.Function }
+interface ClassType<Refs> extends ObjectLike<Refs> {
+    reflecttypeid: number,
     kind: Kind.Class,
     name: string,
-    classReference: InjectedReference,
-    implements: BaseReflectType<InjectedReference>[] // TODO: should be InterfaceType[]
-    extends: BaseReflectType<InjectedReference>[] // TODO: should be ClassType[]
+    classReference: Refs | null,
+    sourceFile: string,
+    implements: BaseReflectType<Refs>[] // TODO: should be InterfaceType[]
+    extends: BaseReflectType<Refs>[] // TODO: should be ClassType[]
 }
 
 // TODO: mix method into function and Object|Class|Interface ?
-interface InterfaceType<InjectedReference> extends ObjectLike<InjectedReference> { kind: Kind.Interface, name: string }
-interface MethodType<InjectedReference> extends FunctionLike<InjectedReference> { kind: Kind.Method, name: string }
-interface ObjectType<InjectedReference> extends ObjectLike<InjectedReference> { kind: Kind.Object }
+interface InterfaceType<Refs> extends ObjectLike<Refs> { kind: Kind.Interface, name: string, extends: BaseReflectType<Refs>[] }
+interface MethodType<Refs> extends FunctionLike<Refs> { kind: Kind.Method, name: string }
+interface ObjectType<Refs> extends ObjectLike<Refs> { kind: Kind.Object }
 
-interface UnionType<InjectedReference> {
+interface UnionType<Refs> extends Common {
     name: string,
     kind: Kind.Union
-    types: BaseReflectType<InjectedReference>[]
+    types: BaseReflectType<Refs>[]
 }
 
-interface ReferenceType<InjectedReference> {
+interface ReferenceType<Refs> extends Common {
     kind: Kind.Reference,
-    type: InjectedReference
-    typeArguments: BaseReflectType<InjectedReference>[]
+    type: Refs
+    typeArguments: BaseReflectType<Refs>[]
 }
 
-interface TupleType<InjectedReference> {
+interface TupleType<Refs> extends Common {
     kind: Kind.Tuple,
-    typeArguments: BaseReflectType<InjectedReference>[]
+    typeArguments: BaseReflectType<Refs>[]
 }
 
 // Nothing is tested below
 // TODO: probably should compute intersection instead
-interface IntersectionType<InjectedReference> {
+interface IntersectionType<Refs> extends Common {
     name: string,
     kind: Kind.Intersection,
-    types: BaseReflectType<InjectedReference>[]
+    types: BaseReflectType<Refs>[]
 }
-// interface IndexType { kind: Kind.Index }
-// interface IndexedAccessType { kind: Kind.IndexedAccess }
-// interface ConditionalType { kind: Kind.Conditional }
-// interface SubstitutionType { kind: Kind.Substitution }
-// interface NonPrimitiveType { kind: Kind.NonPrimitive }
+interface IndexType extends Common { kind: Kind.Index }
+interface IndexedAccessType<Refs> extends Common {
+    kind: Kind.IndexedAccess,
+    objectType: BaseReflectType<Refs>,
+    indexType: BaseReflectType<Refs>
+}
+interface ConditionalType<Refs> extends Common { 
+    kind: Kind.Conditional 
+    checkType: BaseReflectType<Refs>,
+    trueType: BaseReflectType<Refs>,
+    falseType: BaseReflectType<Refs>,
+    extendsType: BaseReflectType<Refs>
+}
+interface SubstitutionType extends Common { kind: Kind.Substitution }
+interface NonPrimitiveType extends Common { kind: Kind.NonPrimitive }
 
 export const REFLECT_TYPE = 'ts-transformer-reflect:type'
 
-type BaseReflectType<InjectedReference> =
+type BaseReflectType<Refs> =
     AnyType |
     UnknownType |
     StringType |
@@ -159,30 +174,35 @@ type BaseReflectType<InjectedReference> =
     EnumLiteralType |
     BigIntLiteralType |
     ESSymbolType |
+    UniqueESSymbolType |
     VoidType |
     UndefinedType |
     NullType |
     NeverType |
     TypeParameterType |
-    ObjectType<InjectedReference> |
-    FunctionType<InjectedReference> |
-    ClassType<InjectedReference> |
-    InterfaceType<InjectedReference> |
-    MethodType<InjectedReference> |
-    ObjectType<InjectedReference> |
-    ClassType<InjectedReference> |
-    ReferenceType<InjectedReference> |
-    UnionType<InjectedReference> |
-    TupleType<InjectedReference> |
-    IntersectionType<InjectedReference>
-// UniqueESSymbolType |
-// IndexType |
-// IndexedAccessType |
-// ConditionalType |
-// SubstitutionType |
-// NonPrimitiveType
+    ObjectType<Refs> |
+    FunctionType<Refs> |
+    ClassType<Refs> |
+    InterfaceType<Refs> |
+    MethodType<Refs> |
+    ObjectType<Refs> |
+    ClassType<Refs> |
+    ReferenceType<Refs> |
+    UnionType<Refs> |
+    TupleType<Refs> |
+    IntersectionType<Refs> |
+    IndexType |
+    IndexedAccessType<Refs> |
+    ConditionalType<Refs> |
+    SubstitutionType |
+    NonPrimitiveType
 
-export interface InternalInjectedReference { runTypeInjectReferenceName: any }
+
+// let x: ReflectType
+// let y: Common
+// y = x
+
+export interface InternalInjectedReference { runTypeInjectReferenceName: string }
 export type InternalReflectType = BaseReflectType<InternalInjectedReference>
 export type InternalNameAndType = BaseNameAndType<InternalInjectedReference>
 export type ReflectType = BaseReflectType<Function>

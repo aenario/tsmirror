@@ -1,6 +1,6 @@
 import * as ts from 'typescript'
 import * as path from 'path'
-import { InternalReflectType as ReflectType, Kind, InternalNameAndType as NameAndType, REFLECT_TYPE } from './type'
+import { InternalReflectType as ReflectType, Kind, InternalNameAndType as NameAndType, REFLECT_TYPE, InternalInjectedReference } from './type'
 import * as util from 'util';
 import { realpathSync } from 'fs-extra';
 import { Y, circularHandler } from './circular';
@@ -8,20 +8,40 @@ import { toLitteral } from './tolitteral';
 
 interface Context {
   checker: ts.TypeChecker,
-  // transformedMap: Map<number, ReflectType>
+  reflectSourceFile: string,
+  depth: number,
   typeArgumentsMapping?: Map<number, ReflectType>
 }
 
 type ToRunType = (t: ts.Type, ctx: Context) => ReflectType
+
+function typeID(t: ts.Type): number {
+  // @ts-ignore Should probably use something else
+  return t.id
+}
+
+function logFlags(flags: number, x: 'TypeFlags' | 'SymbolFlags' | 'ObjectFlags'): string {
+  let out = ''
+  for (let i = 0; i <= flags; i = i ? (i << 1) : 1) if (flags & i) {
+    // @ts-ignore
+    let name = Object.keys(ts[x]).find((k: string) => ts[x][k] == i)
+    out += '|' + (name || i)
+  }
+  return x + '(' + out.substr(1) + ')'
+}
+
+// @ts-ignore
+const debug = !process.env.REFLECT_DEBUG ? (...args?: any[]) => { } :
+  (ctx: Context, ...args: any) => console.log(Array(ctx.depth).fill('').join(' '), ...args)
 
 function symbolArrayToNameTypes(toRunType: ToRunType, ctx: Context, symbols: ts.Symbol[]): NameAndType[] {
   const results: NameAndType[] = [];
   symbols.forEach((symbol) => {
     const t = ctx.checker.getTypeAtLocation(symbol.valueDeclaration)
     const res: NameAndType = { name: symbol.getName(), type: toRunType(t, ctx) }
-    if(ts.isParameter(symbol.valueDeclaration)) {
-      if(symbol.valueDeclaration.dotDotDotToken ) res.rest = true
-      if(symbol.valueDeclaration.initializer) res.default = toRunType(ctx.checker.getTypeAtLocation(symbol.valueDeclaration.initializer), ctx)
+    if (symbol.valueDeclaration && ts.isParameter(symbol.valueDeclaration)) {
+      if (symbol.valueDeclaration.dotDotDotToken) res.rest = true
+      if (symbol.valueDeclaration.initializer) res.default = toRunType(ctx.checker.getTypeAtLocation(symbol.valueDeclaration.initializer), ctx)
     }
     results.push(res)
   })
@@ -47,75 +67,105 @@ function extractHeritageClauses(toRunType: ToRunType, ctx: Context, clauses: ts.
   return [implementedInterfaces, extendedClass]
 }
 
-const KNOWN_REFERENCE = ['Array', 'Map', 'Set', 'WeakSet', 'WeakMap']
+const KNOWN_REFERENCE = {
+  'Array': 'Array',
+  'Map': 'Map',
+  'Set': 'Set',
+  'WeakSet': 'WeakSet',
+  'WeakMap': 'WeakMap',
+  'ReadonlyArray': 'Array',
+} as { [key: string]: string }
 
+
+function interfaceTypetoRunType(toRunType: ToRunType, ctx: Context, type: ts.InterfaceType): ReflectType {
+  const symbol = type.getSymbol()
+  const name = symbol && symbol.getName()
+  const baseTypes = ctx.checker.getBaseTypes(type as unknown as ts.InterfaceType)
+  const inheritedProperties = ([] as ts.Symbol[]).concat(...baseTypes.map((x) => x.getProperties()))
+  const inheritedPropertiesName: string[] = inheritedProperties.map((s) => s.name)
+  debug(ctx, 'interfaceTypetoRunType', typeID(type), name, logFlags(type.objectFlags, 'ObjectFlags'), type.symbol && type.symbol.valueDeclaration && type.symbol.valueDeclaration.getSourceFile().fileName, baseTypes.length, inheritedProperties.length)
+
+  const ownProperties = type.getProperties().filter((symbol) => -1 === inheritedPropertiesName.indexOf(symbol.name))
+
+  return {
+    reflecttypeid: typeID(type),
+    kind: Kind.Interface,
+    extends: baseTypes.map((x) => toRunType(x, ctx)),
+    name: name || 'Anonymous',
+    members: symbolArrayToNameTypes(toRunType, ctx, ownProperties)
+  }
+}
 
 function referenceObjectTypeToRunType(toRunType: ToRunType, ctx: Context, type: ts.TypeReference): ReflectType {
-
-  let typeArguments: ReflectType[] = ctx.checker.getTypeArguments(<ts.TypeReference>type)
-    .map((t) => toRunType(t, ctx))
-
   let baseObjectFlag = type.objectFlags - ts.ObjectFlags.Reference
   let name = type.symbol && type.symbol.name
+  debug(ctx, 'referenceObjectTypeToRunType', typeID(type), name, logFlags(type.objectFlags, 'ObjectFlags'), type.symbol && type.symbol.valueDeclaration && type.symbol.valueDeclaration.getSourceFile().fileName)
+
+  let typeArguments: ReflectType[] = ctx.checker.getTypeArguments(type)
+    .map((t) => toRunType(t, ctx))
+
+  // special case for Arrays and Map
+  // TODO: figure out if there is a way to recognize not by name
+  // TODO: better to create a special Kind ?
+  const known = KNOWN_REFERENCE[name]
+  if (known)
+    return {
+      reflecttypeid: typeID(type),
+      kind: Kind.Reference,
+      type: { runTypeInjectReferenceName: known },
+      typeArguments: typeArguments,
+    }
 
   switch (baseObjectFlag) {
-
     case 0: // objectFlags == ts.ObjectFlags.Reference
-
-      // special case for Arrays and Map
-      // TODO: figure out if there is a way to recognize not by name
-      // TODO: better to create a special Kind ?
-      if (~KNOWN_REFERENCE.indexOf(name))
-        return {
-          kind: Kind.Reference,
-          type: {runTypeInjectReferenceName: name},
-          typeArguments: typeArguments,
-        }
-
       const typeArgumentsMapping = new Map<number, ReflectType>()
       ctx.checker.getTypeArguments(type.target).forEach((t, i) => {
-        // @ts-ignore
-        typeArgumentsMapping.set(t.id, typeArguments[i])
+        typeArgumentsMapping.set(typeID(t), typeArguments[i])
       })
 
+      // Add the type arguments to the context
       ctx = { ...ctx, typeArgumentsMapping }
       return referenceObjectTypeToRunType(toRunType, ctx, type.target);
 
     // Parameterized interface
     case ts.ObjectFlags.Interface:
-      return {
-        kind: Kind.Interface,
-        name: name,
-        members: symbolArrayToNameTypes(toRunType, ctx, type.getProperties())
-      }
+      return interfaceTypetoRunType(toRunType, ctx, type as unknown as ts.InterfaceType)
 
+    // All classes are also reference
     case ts.ObjectFlags.Class:
       if (!ts.isClassDeclaration(type.symbol.valueDeclaration)) throw new Error('class without class declaration')
 
       // TODO: test extends
-      // console.log("checkerBaseTypes", ctx.checker.getBaseTypes(type as unknown as ts.InterfaceType))
+      // console.log(checkerBaseTypes", ctx.checker.getBaseTypes(type as unknown as ts.InterfaceType))
       let clauses = type.symbol.valueDeclaration.heritageClauses as ts.NodeArray<ts.HeritageClause>
       let [implementedInterfaces, extendedClass] = extractHeritageClauses(toRunType, ctx, clauses);
 
+      let classReference: InternalInjectedReference | null = { runTypeInjectReferenceName: name }
+
+      // can't get the class reference if it's not from this source file.
+      if (ctx.reflectSourceFile !== type.symbol.valueDeclaration.getSourceFile().fileName) classReference = null
+
       return {
+        reflecttypeid: typeID(type),
         kind: Kind.Class,
         typeArguments: [],
         implements: implementedInterfaces,
         extends: extendedClass,
-        classReference: { runTypeInjectReferenceName: name },
+        classReference: classReference,
+        sourceFile: path.relative(path.dirname(ctx.reflectSourceFile), type.symbol.valueDeclaration.getSourceFile().fileName),
         name: name,
         members: symbolArrayToNameTypes(toRunType, ctx, type.getProperties())
       }
 
     case ts.ObjectFlags.Tuple:
       return {
+        reflecttypeid: typeID(type),
         kind: Kind.Tuple,
-        typeArguments: ctx.checker.getTypeArguments(type).map((t) => toRunType(t, ctx)),
+        typeArguments: typeArguments,
       }
 
     default:
-      const flag = ts.ObjectFlags[baseObjectFlag] || baseObjectFlag
-      throw new Error('NotImplementedYet: unknown baseObjectFlag ' + flag)
+      throw new Error('NotImplementedYet: unknown ref ' + logFlags(baseObjectFlag, 'ObjectFlags'))
   }
 
 }
@@ -123,25 +173,26 @@ function referenceObjectTypeToRunType(toRunType: ToRunType, ctx: Context, type: 
 function objectTypeToRunType(toRunType: ToRunType, ctx: Context, type: ts.ObjectType): ReflectType {
   const symbol = type.getSymbol()
   const name = symbol && symbol.getName()
+  debug(ctx, 'objectTypeToRunType', typeID(type), name, logFlags(type.objectFlags, 'ObjectFlags'), symbol && logFlags(symbol.flags, 'SymbolFlags'))
 
   // ts.ObjectFlags above 2 << 17 are internals, let's drop them
   let objectFlags = type.objectFlags & 0x1FFFF
 
-  if (objectFlags & ts.ObjectFlags.Reference)
-    return referenceObjectTypeToRunType(toRunType, ctx, type as ts.TypeReference)
-
+  // more ObjectFlags to drop (for now) 
   if (objectFlags & ts.ObjectFlags.FreshLiteral)
     objectFlags = objectFlags - ts.ObjectFlags.FreshLiteral
+  if (objectFlags & ts.ObjectFlags.Instantiated)
+    objectFlags = objectFlags - ts.ObjectFlags.Instantiated
+
+  if (objectFlags & ts.ObjectFlags.Reference)
+    return referenceObjectTypeToRunType(toRunType, ctx, type as ts.TypeReference)
 
   switch (objectFlags) {
 
     case ts.ObjectFlags.Interface:
-      return {
-        kind: Kind.Interface,
-        name: name,
-        members: symbolArrayToNameTypes(toRunType, ctx, type.getProperties())
-      }
+      return interfaceTypetoRunType(toRunType, ctx, type as ts.InterfaceType)
 
+    case ts.ObjectFlags.Mapped:
     case ts.ObjectFlags.Anonymous:
     case ts.ObjectFlags.Anonymous | ts.ObjectFlags.ObjectLiteral:
 
@@ -152,26 +203,41 @@ function objectTypeToRunType(toRunType: ToRunType, ctx: Context, type: ts.Object
         optional = { optional: true }
       }
 
-      switch (symbolFlags) {
+      // @TODO what is this ?
+      if (symbolFlags & ts.SymbolFlags.Transient) {
+        symbolFlags = symbolFlags - ts.SymbolFlags.Transient
+      }
 
+      if (symbolFlags & ts.SymbolFlags.ValueModule) {
+        symbolFlags = symbolFlags - ts.SymbolFlags.ValueModule
+      }
+
+      switch (symbolFlags) {
+        case 0: // ts.SymbolFlags.ValueModule
+        case ts.SymbolFlags.Class:  // TODO TEST ME
+        case ts.SymbolFlags.Class | ts.SymbolFlags.Interface: // TODO TEST ME
+        case ts.SymbolFlags.Class | ts.SymbolFlags.NamespaceModule: // TODO TEST ME
+        case ts.SymbolFlags.NamespaceModule:
         case ts.SymbolFlags.TypeLiteral:
         case ts.SymbolFlags.ObjectLiteral:
           if (type.getProperties().length)
             return {
               ...optional,
+              reflecttypeid: typeID(type),
               kind: Kind.Interface,
-              name: '',
+              extends: [],
+              name: "",
               members: symbolArrayToNameTypes(toRunType, ctx, type.getProperties())
             }
 
           else { /* fallthrough */ }
-        case ts.SymbolFlags.Function | ts.SymbolFlags.Transient:
         case ts.SymbolFlags.Function:
         case ts.SymbolFlags.Method:
           return {
             ...optional,
+            reflecttypeid: typeID(type),
             kind: symbolFlags == ts.SymbolFlags.Method ? Kind.Method : Kind.Function,
-            name: name != '__type' ? name : '', // cleanup anonyms
+            name: (name && name != '__type') ? name : '', // cleanup anonyms
             signatures: ctx.checker.getSignaturesOfType(type, ts.SignatureKind.Call).map((s) => ({
               parameters: symbolArrayToNameTypes(toRunType, ctx, s.getParameters()),
               returnType: toRunType(s.getReturnType(), ctx)
@@ -179,14 +245,11 @@ function objectTypeToRunType(toRunType: ToRunType, ctx: Context, type: ts.Object
           }
 
         default:
-          const flag = ts.SymbolFlags[symbolFlags] || symbolFlags
-          throw new Error('NotImplementedYet: unknown symbol flag ' + flag)
+          throw new Error('NotImplementedYet: unknown ' + logFlags(type.symbol.flags, 'SymbolFlags'))
       }
 
     default:
-      console.log(type);
-      const flag = ts.ObjectFlags[objectFlags] || objectFlags
-      throw new Error('NotImplementedYet: unknown object flag ' + flag)
+      throw new Error('NotImplementedYet: unknown ' + logFlags(type.objectFlags, 'ObjectFlags'))
   }
 }
 
@@ -203,7 +266,7 @@ function mergeBooleanLiteralTypes(types: ReflectType[]): ReflectType[] {
   })
   if (trueType && falseType) return types
     .filter((x) => x != trueType && x != falseType)
-    .concat({ kind: Kind.Boolean })
+    .concat({ reflecttypeid: 0, kind: Kind.Boolean })
 
   else return types
 }
@@ -223,47 +286,48 @@ const NOMEMOTYPES = [
   ts.TypeFlags.Never,
 ]
 
-/*
-function toRunType(ctx: Context, type: ts.Type) {
-  // @ts-ignore
-  let id: number = type.id
-
-  let existing = id && ctx.transformedMap.get(id)
-  if (existing && -1 === NOMEMOTYPES.indexOf(existing.kind)) {
-    return existing;
-  }
-
-  let ref = { }
-  // @ts-ignore TODO figure out how to explain this to typescript
-  ctx.transformedMap.set(id, ref)
-  let result = toRunTypeNoMemo(ctx, type);
-  Object.assign(ref, result)
-
-  return result
-}*/
-
 function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectType {
   const flags = type.flags
   const name = type.symbol && type.symbol.getName()
+  ctx = { ...ctx, depth: ctx.depth + 1 }
+  debug(ctx, '_toRunType', typeID(type), logFlags(flags, 'TypeFlags'), name)
+  ctx = { ...ctx, depth: ctx.depth + 1 }
+
+  const out: ReflectType = { reflecttypeid: typeID(type), kind: Kind.Unknown }
+
+  if (name == 'TypeChecker') return { reflecttypeid: typeID(type), kind: Kind.Unknown } // TODO remove me
 
   switch (flags) {
-    case ts.TypeFlags.Any: return { kind: Kind.Any }
-    case ts.TypeFlags.Unknown: return { kind: Kind.Unknown }
-    case ts.TypeFlags.String: return { kind: Kind.String }
-    case ts.TypeFlags.Number: return { kind: Kind.Number }
-    case ts.TypeFlags.Boolean: return { kind: Kind.Boolean }
-    case ts.TypeFlags.BigInt: return { kind: Kind.BigInt }
-    case ts.TypeFlags.Void: return { kind: Kind.Void }
-    case ts.TypeFlags.Undefined: return { kind: Kind.Undefined }
-    case ts.TypeFlags.Null: return { kind: Kind.Null }
-    case ts.TypeFlags.Never: return { kind: Kind.Never }
+    case ts.TypeFlags.Any: return { ...out, kind: Kind.Any }
+    case ts.TypeFlags.Unknown: return { ...out, kind: Kind.Unknown }
+    case ts.TypeFlags.String: return { ...out, kind: Kind.String }
+    case ts.TypeFlags.Number: return { ...out, kind: Kind.Number }
+    case ts.TypeFlags.Boolean: return { ...out, kind: Kind.Boolean }
+    case ts.TypeFlags.BigInt: return { ...out, kind: Kind.BigInt }
+    case ts.TypeFlags.Void: return { ...out, kind: Kind.Void }
+    case ts.TypeFlags.Undefined: return { ...out, kind: Kind.Undefined }
+    case ts.TypeFlags.Null: return { ...out, kind: Kind.Null }
+    case ts.TypeFlags.Never: return { ...out, kind: Kind.Never }
+    case ts.TypeFlags.ESSymbol: return { ...out, kind: Kind.ESSymbol }
+    case ts.TypeFlags.UniqueESSymbol: return { ...out, kind: Kind.UniqueESSymbol }
+    case ts.TypeFlags.NonPrimitive: return { ...out, kind: Kind.NonPrimitive }
+    case ts.TypeFlags.Conditional:
+      return {
+        ...out,
+        kind: Kind.Conditional,
+        checkType: toRunType((<ts.ConditionalType>type).checkType, ctx),
+        trueType: toRunType((<ts.ConditionalType>type).root.trueType, ctx),
+        falseType: toRunType((<ts.ConditionalType>type).root.falseType, ctx),
+        extendsType: toRunType((<ts.ConditionalType>type).extendsType, ctx)
+      }
 
     // boolean is an union and a boolean
     case ts.TypeFlags.Union | ts.TypeFlags.Boolean:
-      return { kind: Kind.Boolean }
+      return { reflecttypeid: typeID(type), kind: Kind.Boolean }
 
     case ts.TypeFlags.Union:
       return {
+        reflecttypeid: typeID(type),
         name: name,
         kind: Kind.Union,
         types: mergeBooleanLiteralTypes((<ts.UnionType>type).types.map((t) => toRunType(t, ctx)))
@@ -272,13 +336,14 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
     case (ts.TypeFlags.Union | ts.TypeFlags.EnumLiteral): // Enum
       const names: string[] = []
       const values: any[] = []
-      type.symbol.exports.forEach((symbol) => {
+      type.symbol && type.symbol.exports && type.symbol.exports.forEach((symbol) => {
         names.push(symbol.getName())
         let type = ctx.checker.getTypeAtLocation(symbol.valueDeclaration)
         if (type.flags === (ts.TypeFlags.EnumLiteral | ts.TypeFlags.NumberLiteral))
           values.push((<ts.NumberLiteralType>type).value)
       })
       return {
+        reflecttypeid: typeID(type),
         kind: Kind.Enum,
         name: name,
         names: names,
@@ -286,6 +351,7 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
       }
     case ts.TypeFlags.Intersection:
       return {
+        reflecttypeid: typeID(type),
         name: name,
         kind: Kind.Intersection,
         types: (<ts.IntersectionType>type).types.map((t) => toRunType(t, ctx))
@@ -293,23 +359,27 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
     case ts.TypeFlags.EnumLiteral | ts.TypeFlags.NumberLiteral:
     case ts.TypeFlags.NumberLiteral:
       return {
+        reflecttypeid: typeID(type),
         kind: Kind.NumberLiteral,
         value: (<ts.NumberLiteralType>type).value
       }
     case ts.TypeFlags.EnumLiteral | ts.TypeFlags.StringLiteral:
     case ts.TypeFlags.StringLiteral:
       return {
+        reflecttypeid: typeID(type),
         kind: Kind.StringLiteral,
         value: (<ts.StringLiteralType>type).value
       }
     case ts.TypeFlags.BooleanLiteral:
       return {
+        reflecttypeid: typeID(type),
         kind: Kind.BooleanLiteral,
         // @ts-ignore TODO: how to properly check if type
         // is BooleanLiteral(true) or BooleanLiteral(false)
         value: type.intrinsicName === 'true'
       }
     case ts.TypeFlags.BigIntLiteral: return {
+      reflecttypeid: typeID(type),
       kind: Kind.BigIntLiteral,
       value: (<ts.BigIntLiteralType>type).value
     }
@@ -317,18 +387,30 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
       return objectTypeToRunType(toRunType, ctx, <ts.ObjectType>type);
 
     case ts.TypeFlags.TypeParameter:
-      let t = (<ts.TypeParameter>type)
-      // @ts-ignore
-      const mapped = ctx.typeArgumentsMapping && ctx.typeArgumentsMapping.get(t.id)
+      const mapped = ctx.typeArgumentsMapping && ctx.typeArgumentsMapping.get(typeID(type))
       if (mapped) return mapped
-      return { kind: Kind.TypeParameter, name: t.symbol && t.symbol.name }
+
+      // @TODO: throw ?
+      let t = (<ts.TypeParameter>type)
+      return { reflecttypeid: typeID(type), kind: Kind.TypeParameter, name: t.symbol && t.symbol.name }
+
+    // still not sure what this is
+    case ts.TypeFlags.IndexedAccess:
+      return {
+        reflecttypeid: typeID(type),
+        indexType: toRunType((<ts.IndexedAccessType>type).indexType, ctx),
+        objectType: toRunType((<ts.IndexedAccessType>type).objectType, ctx),
+        kind: Kind.IndexedAccess
+      }
+
+    case ts.TypeFlags.Index:
+      debug('REPORTME: Index', type)
+      return { reflecttypeid: typeID(type), kind: Kind.Index }
 
     default:
-      throw new Error('NotImplementedYet: unknown flag ' + type.flags + ' ' + ts.TypeFlags[type.flags] || '')
+      throw new Error('NotImplementedYet: unknown ' + logFlags(type.flags, 'TypeFlags'))
   }
 }
-
-
 
 type CircularMarker = ReflectType & { kind: Kind.Unknown }
 function makeLiteralFromNode(checker: ts.TypeChecker, node: ts.Node): ts.Expression {
@@ -336,15 +418,16 @@ function makeLiteralFromNode(checker: ts.TypeChecker, node: ts.Node): ts.Express
 
   const tstype = checker.getTypeAtLocation(node);
   const ctx = {
+    reflectSourceFile: node.getSourceFile().fileName,
     checker: checker,
-    // transformedMap: new Map()
+    depth: 0
   }
 
   const reflectType = Y(circularHandler({
     shouldMemo: (t: ts.Type, _: Context) => NOMEMOTYPES.indexOf(t.flags) === -1,
     // @ts-ignore
     keyMaker: (t: ts.Type): number => t.id,
-    circularMarker: (): CircularMarker => ({ kind: Kind.Unknown }),
+    circularMarker: (t: ts.Type): CircularMarker => ({ reflecttypeid: typeID(t), kind: Kind.Unknown }),
     replaceMarker: (m: CircularMarker, r) => Object.assign(m, r)
   }, _toRunType))(tstype, ctx)
 
@@ -372,16 +455,11 @@ const indexTs = path.join(__dirname, '..', 'src', 'index.ts');
 const indexDTs = path.join(__dirname, '..', 'lib', 'index.d.ts');
 function isReflectCallExpression(node: ts.CallExpression, typeChecker: ts.TypeChecker): string | false {
 
-  // console.log('call', node.expression.getText(), node.getSourceFile().fileName)
-
   const signature = typeChecker.getResolvedSignature(node)
 
-  // if('reflect' === node.expression.getText()) console.log(signature, signature && signature.declaration)
   if (typeof signature === 'undefined') return false
 
   const { declaration } = signature
-
-  // if(declaration.name.getText() === 'reflect') console.log("BAD IMPORT?",declarationSource)
 
   if (!declaration) return false
   if (ts.isJSDocSignature(declaration)) return false

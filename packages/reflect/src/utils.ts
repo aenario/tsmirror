@@ -193,5 +193,8 @@ export function isCompatible(needed: ReflectType, candidate: ReflectType, /* @in
 
         case Kind.TypeParameter:
             return candidate.kind === Kind.TypeParameter // TODO more later
+
+        default:
+            return false
     }
 }
