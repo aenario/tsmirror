@@ -7,29 +7,36 @@ interface GraphqlAPIDefinition {
     mutations: { [name: string]: Function }
 }
 
-
+// TODO: circularHandler
 export function graphql(def: GraphqlAPIDefinition): { client: any, schema: string } {
 
-    const rt: ReflectType = getTypeOf(def)
+    const rt: ReflectType | null = getTypeOf(def)
+    if (rt == null) throw new Error('the api definition have not been reflected') 
     if (rt.kind != Kind.Interface) throw new Error('bad graphql argument')
 
-    const queries = rt.members.find(({ name }) => name === 'queries').type
-    if (queries.kind != Kind.Interface) throw new Error('bad graphql queries argument')
+    const members: NameAndType[] = rt.members
+    const queriesNT = members.find(({ name }) => name === 'queries') 
+    if (!queriesNT || queriesNT.type.kind != Kind.Interface) throw new Error('bad graphql queries argument')
 
-    const mutations = rt.members.find(({ name }) => name === 'mutations').type
-    if (mutations.kind != Kind.Interface) throw new Error('bad graphql mutations argument')
+    const mutationsNT = members.find(({ name }) => name === 'mutations') 
+    if (!mutationsNT || mutationsNT.type.kind != Kind.Interface) throw new Error('bad graphql mutations argument')
 
+    const queries = queriesNT.type
+    const mutations = mutationsNT.type
 
     const nameCounter = 0
     const inputTypes = new Map<ReflectType, string>()
     const outputTypes = new Map<ReflectType, string>()
 
-    const getName = (t: ReflectType, forInput: boolean): string => {
+    const getName = (t: ReflectType, forInput: boolean, nonNull: boolean = false): string => {
+
+        const maybeBang = nonNull ? '!' : ''
+
         switch (t.kind) {
-            case Kind.String: return 'String'
-            case Kind.Number: return 'Float|Int'
-            case Kind.Boolean: return 'Boolean'
-            case Kind.BigInt: return 'Int'
+            case Kind.String: return 'String' + maybeBang
+            case Kind.Number: return 'Float|Int' + maybeBang
+            case Kind.Boolean: return 'Boolean' + maybeBang
+            case Kind.BigInt: return 'Int' + maybeBang
 
             case Kind.NumberLiteral: return t.value.toString()
             case Kind.StringLiteral:
@@ -37,8 +44,20 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
             case Kind.BigIntLiteral:
                 return JSON.stringify(t.value)
 
+            // TODO test me
+            case Kind.EnumLiteral:
+                return t.valueName
+            case Kind.Enum:
+                return t.name
+
             case Kind.Reference:
-                if (t.type === Array) return '[' + getName(t.typeArguments[0], forInput) + '!]'
+                if (t.type === Array) return '[' + getName(t.typeArguments[0], forInput) + '!]' + maybeBang
+                else throw new Error('not implemented yet graphql for ' + humanReadable(t))
+
+            case Kind.Union:
+                if (t.types.length === 2 && t.types[1].kind === Kind.Null) return getName(t.types[0], forInput, true)
+                if (t.types.length === 2 && t.types[0].kind === Kind.Null) return getName(t.types[1], forInput, true)
+                else throw new Error('not implemented yet graphql for ' + humanReadable(t))
 
             case Kind.Any:
             case Kind.Unknown:
@@ -46,7 +65,6 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
             case Kind.Undefined:
             case Kind.Null:
             case Kind.Never:
-            case Kind.Union:
             case Kind.Intersection:
             case Kind.Function:
             case Kind.Method:
@@ -54,22 +72,17 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
             case Kind.TypeParameter:
             case Kind.ESSymbol:
                 throw new Error('not implemented yet graphql for ' + humanReadable(t))
-
-            // TODO test me
-            case Kind.EnumLiteral:
-                return t.valueName
-            case Kind.Enum:
-                return t.name
         }
 
         let lookup = forInput ? inputTypes : outputTypes
 
+        // @ts-ignore
+        let name = (t.name ? t.name : ('Anonymous' + (nameCounter++))) + (forInput ? 'Input' : '')
+
         if (!lookup.has(t)) {
-            // @ts-ignore
-            let name = t.name ? t.name : ('Anonymous' + (nameCounter++))
-            lookup.set(t, name + (forInput ? 'Input' : ''))
+            lookup.set(t, name )
         }
-        return lookup.get(t)
+        return name
     }
 
     const graphqlParameter = ({ name, type, default: def }: NameAndType) => {

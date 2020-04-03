@@ -42,7 +42,7 @@ export function makeContainer() {
     const beans = [] as Bean[]
 
     const factoryToBean = (factory: Function): Bean => {
-        const t: ReflectType = getTypeOf(factory)
+        const t = getTypeOf(factory)
         if (t === null) throw new Error('Factory function has not been reflected')
         if (t.kind !== Kind.Function) throw new Error('Only functions are accepted as factory, got ' + t)
         let sig = t.signatures[0]
@@ -68,7 +68,7 @@ export function makeContainer() {
         if (tmpbean.resolved) return tmpbean.resolved
         else throw new Error(trace.toString())
     }
-    const resolve = (bean: Bean, trace?: Trace) => {
+    const resolve = (bean: Bean, trace: Trace) => {
         const resolvedParameters = []
         if (bean.resolved) {
             trace.log('bean ', bean.name, ' already resolved')

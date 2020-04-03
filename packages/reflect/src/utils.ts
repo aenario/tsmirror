@@ -31,9 +31,10 @@ function _humanReadable(humanReadable: (_: ReflectType) => string, t: ReflectTyp
         case Kind.Boolean:
         case Kind.Enum:
         case Kind.BigInt:
+        case Kind.ESSymbol:
             return t.kind
 
-        case Kind.ESSymbol:
+
         case Kind.StringLiteral:
         case Kind.NumberLiteral:
         case Kind.BooleanLiteral:
@@ -76,8 +77,8 @@ export const humanReadable: (x: ReflectType) => string = Y(circularHandler({
     shouldMemo: (_: ReflectType) => true,
     keyMaker: (x: ReflectType) => x,
     // @ts-ignore
-    circularMarker: (x: ReflectType) => '[Circular '+(x.name?x.name:'reference')+' ]',
-    replaceMarker: () => {}
+    circularMarker: (x: ReflectType) => '[Circular ' + (x.name ? x.name : 'reference') + ' ]',
+    replaceMarker: () => { }
 }, _humanReadable))
 
 export function isLiteral(t: ReflectType): t is ReflectType & { kind: Kind.StringLiteral | Kind.NumberLiteral | Kind.BooleanLiteral | Kind.EnumLiteral | Kind.BigIntLiteral } {
@@ -94,7 +95,7 @@ export function isLiteral(t: ReflectType): t is ReflectType & { kind: Kind.Strin
 }
 
 export function getWidenedOfType(kind: Kind.StringLiteral | Kind.NumberLiteral | Kind.BooleanLiteral | Kind.BigIntLiteral)
-: Kind.String | Kind.Number | Kind.Boolean | Kind.BigInt {
+    : Kind.String | Kind.Number | Kind.Boolean | Kind.BigInt {
     switch (kind) {
         case Kind.StringLiteral: return Kind.String
         case Kind.NumberLiteral: return Kind.Number
@@ -130,6 +131,7 @@ export function isCompatible(needed: ReflectType, candidate: ReflectType, /* @in
         case Kind.Undefined:
         case Kind.Null:
         case Kind.Never:
+        case Kind.ESSymbol:
             return candidate.kind === needed.kind
 
         case Kind.String:
@@ -139,7 +141,6 @@ export function isCompatible(needed: ReflectType, candidate: ReflectType, /* @in
         case Kind.BigInt:
             return candidate.kind === needed.kind || candidate.kind === getLiteralOfType(needed.kind)
 
-        case Kind.ESSymbol:
         case Kind.StringLiteral:
         case Kind.NumberLiteral:
         case Kind.BooleanLiteral:

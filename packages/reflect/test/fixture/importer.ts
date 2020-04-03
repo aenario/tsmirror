@@ -17,7 +17,6 @@ export const expected = {
         type: {
             kind: Kind.Class,
             name: "SecretClass",
-            classReference: null,
             extends: [],
             implements: [],
             members: [

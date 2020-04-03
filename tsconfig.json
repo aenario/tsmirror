@@ -4,6 +4,7 @@
         "target": "es2016",
         "module": "commonjs",
         "declaration": true,
+        "strictNullChecks": true,
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true,
         "moduleResolution": "node",

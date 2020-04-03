@@ -28,7 +28,6 @@ function _toLiteral(toLiteral: ToLiteral, x: any): ts.Expression {
         return ts.createArrayLiteral(x.map(toLiteral))
 
     if (t == 'object' && x.runTypeInjectReferenceName) {
-        console.log('identifier', x.runTypeInjectReferenceName)
         return ts.createIdentifier(x.runTypeInjectReferenceName)
     }
 

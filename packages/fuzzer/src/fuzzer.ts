@@ -6,7 +6,7 @@ import { inspect } from 'util'
 const NAUGHTYNUMBERS: number[] = [0, -1, 1, Infinity, -Infinity, NaN, 42e42, Number.MAX_SAFE_INTEGER, -Number.MAX_SAFE_INTEGER]
 
 const flatMap = <T, U>(arr: T[], mapper: (t: T) => U): U[] => {
-    return [].concat(...arr.map(mapper))
+    return ([] as U[]).concat(...arr.map(mapper))
 }
 
 /*
@@ -30,8 +30,8 @@ export function possibleValues(type: ReflectType): any[] {
         case Kind.Number: return NAUGHTYNUMBERS
         case Kind.Boolean: return [true, false]
         case Kind.BigInt: return NAUGHTYNUMBERS.map((n) => BigInt(n))
+        case Kind.ESSymbol: return [Symbol.for('test-symbol')]
 
-        case Kind.ESSymbol:
         case Kind.StringLiteral:
         case Kind.NumberLiteral:
         case Kind.BooleanLiteral:
@@ -88,13 +88,13 @@ export function possibleValues(type: ReflectType): any[] {
 
 
 export function fuzzer(runner: Function): void {
-    const t: ReflectType = getTypeOf(runner)
+    const t = getTypeOf(runner)
     if (t === null) throw new Error('runner function has not been reflected')
     if (t.kind !== Kind.Function) throw new Error('Only functions are accepted as runner, got ' + t)
     let sig = t.signatures[0]
     let parameters = sig.parameters
 
-    let values = possibleValues({ kind: Kind.Tuple, typeArguments: parameters.map(({ type }) => type) })
+    let values = possibleValues({ reflecttypeid: -666, kind: Kind.Tuple, typeArguments: parameters.map(({ type }) => type) })
     values.forEach((args) => {
         try {
             runner.apply(null, args)

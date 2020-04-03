@@ -107,8 +107,8 @@ interface ClassType<Refs> extends ObjectLike<Refs> {
     reflecttypeid: number,
     kind: Kind.Class,
     name: string,
-    classReference: Refs | null,
-    sourceFile: string,
+    classReference?: Refs,
+    sourceFile?: string,
     implements: BaseReflectType<Refs>[] // TODO: should be InterfaceType[]
     extends: BaseReflectType<Refs>[] // TODO: should be ClassType[]
 }

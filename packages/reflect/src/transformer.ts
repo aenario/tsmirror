@@ -140,19 +140,18 @@ function referenceObjectTypeToRunType(toRunType: ToRunType, ctx: Context, type: 
       let clauses = type.symbol.valueDeclaration.heritageClauses as ts.NodeArray<ts.HeritageClause>
       let [implementedInterfaces, extendedClass] = extractHeritageClauses(toRunType, ctx, clauses);
 
-      let classReference: InternalInjectedReference | null = { runTypeInjectReferenceName: name }
-
       // can't get the class reference if it's not from this source file.
-      if (ctx.reflectSourceFile !== type.symbol.valueDeclaration.getSourceFile().fileName) classReference = null
+      let sameFile = ctx.reflectSourceFile === type.symbol.valueDeclaration.getSourceFile().fileName
+      let classReference: InternalInjectedReference = { runTypeInjectReferenceName: name }
+      let sourceFile = path.relative(path.dirname(ctx.reflectSourceFile), type.symbol.valueDeclaration.getSourceFile().fileName)
 
       return {
+        ...(sameFile ? {classReference} : {sourceFile}),
         reflecttypeid: typeID(type),
         kind: Kind.Class,
         typeArguments: [],
         implements: implementedInterfaces,
         extends: extendedClass,
-        classReference: classReference,
-        sourceFile: path.relative(path.dirname(ctx.reflectSourceFile), type.symbol.valueDeclaration.getSourceFile().fileName),
         name: name,
         members: symbolArrayToNameTypes(toRunType, ctx, type.getProperties())
       }
