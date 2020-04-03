@@ -60,7 +60,7 @@ export const expected: any = {
         { name: "bigIntProp", type: { kind: Kind.BigInt } },
         {
             name: "objectProp", type: {
-                kind: Kind.Interface, name: '', members: [
+                kind: Kind.Interface, name: '', extends: [], members: [
                     { name: "x", type: { kind: Kind.Number } },
                     { name: "y", type: { kind: Kind.Number } },
                 ]
@@ -87,7 +87,7 @@ export const expected: any = {
             name: "intersectionProp", type: {
                 kind: Kind.Intersection,
                 types: [reflect<I>(), {
-                    kind: Kind.Interface, name: '', members: [{
+                    kind: Kind.Interface, name: '', extends: [], members: [{
                         name: 'otherProp', type: { kind: Kind.Number }
                     }]
                 }]

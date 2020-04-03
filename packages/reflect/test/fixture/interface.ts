@@ -9,6 +9,7 @@ export const result = reflect<A>()
 export const expected = {
     kind: Kind.Interface,
     name: 'A',
+    extends: [] as any[],
     members: [{
         name: "prop",
         type: { kind: Kind.String }

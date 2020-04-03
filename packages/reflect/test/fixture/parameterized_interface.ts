@@ -11,6 +11,7 @@ export const result = reflect<A<string, number>>()
 export const expected = {
     kind: Kind.Interface,
     name: 'A',
+    extends: [] as any[],
     members: [
         {
             name: "first",

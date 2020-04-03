@@ -26,6 +26,7 @@ describe("reflected", function () {
 
         expect(metadata).to.deep.equal({
             kind: Kind.Interface,
+            extends: [] as any[],
             name: 'A',
             members: [{
                 name: "prop",
