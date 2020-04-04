@@ -2,9 +2,9 @@ import 'reflect-metadata'
 import { ReflectType, Kind, NameAndType } from '@tsmirror/reflect'
 import { getTypeOf, humanReadable } from '@tsmirror/reflect'
 
-interface GraphqlAPIDefinition {
-    queries: { [name: string]: Function }
-    mutations: { [name: string]: Function }
+export interface GraphqlAPIDefinition {
+    Query: { [name: string]: Function }
+    Mutation: { [name: string]: Function }
 }
 
 // TODO: circularHandler
@@ -15,10 +15,10 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
     if (rt.kind != Kind.Interface) throw new Error('bad graphql argument')
 
     const members: NameAndType[] = rt.members
-    const queriesNT = members.find(({ name }) => name === 'queries') 
+    const queriesNT = members.find(({ name }) => name === 'Query')
     if (!queriesNT || queriesNT.type.kind != Kind.Interface) throw new Error('bad graphql queries argument')
 
-    const mutationsNT = members.find(({ name }) => name === 'mutations') 
+    const mutationsNT = members.find(({ name }) => name === 'Mutation') 
     if (!mutationsNT || mutationsNT.type.kind != Kind.Interface) throw new Error('bad graphql mutations argument')
 
     const queries = queriesNT.type
@@ -28,13 +28,16 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
     const inputTypes = new Map<ReflectType, string>()
     const outputTypes = new Map<ReflectType, string>()
 
-    const getName = (t: ReflectType, forInput: boolean, nonNull: boolean = false): string => {
+    const getName = (t: ReflectType, forInput: boolean, nonNull: boolean = true): string => {
 
         const maybeBang = nonNull ? '!' : ''
+        let lookup = forInput ? inputTypes : outputTypes
+        let existing = lookup.get(t)
+        if(existing) return existing
 
         switch (t.kind) {
             case Kind.String: return 'String' + maybeBang
-            case Kind.Number: return 'Float|Int' + maybeBang
+            case Kind.Number: return 'Float' + maybeBang
             case Kind.Boolean: return 'Boolean' + maybeBang
             case Kind.BigInt: return 'Int' + maybeBang
 
@@ -55,8 +58,10 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
                 else throw new Error('not implemented yet graphql for ' + humanReadable(t))
 
             case Kind.Union:
-                if (t.types.length === 2 && t.types[1].kind === Kind.Null) return getName(t.types[0], forInput, true)
-                if (t.types.length === 2 && t.types[0].kind === Kind.Null) return getName(t.types[1], forInput, true)
+                if (t.types.length === 2 && (t.types[1].kind === Kind.Null || t.types[1].kind === Kind.Undefined))
+                    return getName(t.types[0], forInput, false)
+                if (t.types.length === 2 && (t.types[0].kind === Kind.Null || t.types[0].kind === Kind.Undefined))
+                    return getName(t.types[1], forInput, false)
                 else throw new Error('not implemented yet graphql for ' + humanReadable(t))
 
             case Kind.Any:
@@ -73,8 +78,6 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
             case Kind.ESSymbol:
                 throw new Error('not implemented yet graphql for ' + humanReadable(t))
         }
-
-        let lookup = forInput ? inputTypes : outputTypes
 
         // @ts-ignore
         let name = (t.name ? t.name : ('Anonymous' + (nameCounter++))) + (forInput ? 'Input' : '')
@@ -122,7 +125,7 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
     const inputBlocks = Array.from(inputTypes.entries()).map(([t, name]) => grapqlObject(t, name, true)).join('\n\n')
     const outputBlocks = Array.from(outputTypes.entries()).map(([t, name]) => grapqlObject(t, name, false)).join('\n\n')
 
-    const schemaBlock = 'schema{\n  query: Query, mutation: Mutation\n}'
+    const schemaBlock = 'schema{\n  query: Query\n  mutation: Mutation\n}'
 
     const schema = [inputBlocks, outputBlocks, mutationBlock, queryBlock, schemaBlock].join('\n\n')
 

@@ -27,5 +27,9 @@
   "bugs": {
     "url": "https://github.com/aenario/tsmirror/issues"
   },
-  "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/di#readme"
+  "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/di#readme",
+  "devDependencies": {
+    "apollo-server": "^2.11.0",
+    "graphql": "^15.0.0"
+  }
 }
