@@ -15,14 +15,11 @@ const M = <Args extends ArgsBase, Res>(x: MAKER<Args, Res>): FN<Args, Res> => x(
 export const Y : WHY = <Args extends ArgsBase, Res> (mfn: MFN<Args, Res>) =>
     M((maker: MAKER<Args, Res>) => (...args: Args) => mfn(maker(maker), ...args))
 
-type KeyMaker<Args extends ArgsBase, Key> = (...args: Args) => Key
-type ShouldMemo<Args extends ArgsBase> = (...args: Args) => boolean
-
 export function circularHandler<Args extends ArgsBase, Key, Marker extends Res, Res>(
     params: {
-        shouldMemo: ShouldMemo<Args>,
-        keyMaker: KeyMaker<Args, Key>,
-        circularMarker: FN<Args, Marker>,
+        shouldMemo: (...args: Args) => boolean,
+        keyMaker: (...args: Args) => Key,
+        circularMarker: (...args: Args) => Marker,
         replaceMarker: (tmp: Marker, final: Res) => void
     },
     mfn: MFN<Args, Res>,
@@ -42,6 +39,6 @@ export function circularHandler<Args extends ArgsBase, Key, Marker extends Res, 
         lookup.set(key, marker)
         let res: Res = mfn(fn, ...args)
         params.replaceMarker(marker, res)
-        return res
+        return marker
     }
 }
