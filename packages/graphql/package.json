@@ -10,7 +10,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@tsmirror/reflect": "^0.0.1",
+    "@tsmirror/reflect": "^0.0.2",
     "blns": "^2.0.4"
   },
   "files": [
@@ -31,5 +31,8 @@
   "devDependencies": {
     "apollo-server": "^2.11.0",
     "graphql": "^15.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

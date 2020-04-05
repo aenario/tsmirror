@@ -10,7 +10,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@tsmirror/reflect": "^0.0.1",
+    "@tsmirror/reflect": "^0.0.2",
     "blns": "^2.0.4"
   },
   "files": [
@@ -27,5 +27,8 @@
   "bugs": {
     "url": "https://github.com/aenario/tsmirror/issues"
   },
-  "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/di#readme"
+  "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/di#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

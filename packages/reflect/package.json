@@ -1,6 +1,6 @@
 {
   "name": "@tsmirror/reflect",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Typescript runtime inspection",
   "main": "lib/index.js",
   "scripts": {
@@ -41,5 +41,8 @@
     "prettier": "^1.17.1",
     "reflect-metadata": "^0.1.13",
     "ts-node": "^8.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
