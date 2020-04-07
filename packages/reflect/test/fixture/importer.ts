@@ -19,6 +19,10 @@ export const expected = {
             name: "SecretClass",
             extends: [],
             implements: [],
+            constructorSignatures: [{
+                parameters: [{name: 'name', type: {kind: Kind.String}}],
+                returnType: {},
+            }],
             members: [
                 { name: "name", type: { kind: Kind.String } }
             ],
@@ -27,3 +31,5 @@ export const expected = {
         }
     }]
 }
+// @ts-ignore
+expected.members[1].type.constructorSignatures[0].returnType = expected.members[1].type

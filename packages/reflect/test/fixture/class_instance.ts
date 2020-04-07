@@ -5,25 +5,21 @@ interface I {
     sayHello(s: string): string
 }
 
-class B {
-    otherprop: string
-    constructor(otherprop: string) { this.otherprop = otherprop}
-}
-
-class A extends B implements I {
+class A implements I {
     myprop: string
-    constructor(myprop: string) { super(myprop); this.myprop = myprop }
+    constructor(myprop: string) { this.myprop = myprop }
     sayHello(s: string): string { return 'hello ' + this.myprop + s }
 }
 
-export const result = reflect<A>()
-export const BReflectType = reflect<B>()
+const a = new A('zip');
+
+export const result = reflect(a)
 export const expected = {
     kind: Kind.Class,
     name: 'A',
     classReference: A,
     typeArguments: [] as any[],
-    extends: [BReflectType],
+    extends: [] as any[],
     implements: [reflect<I>()],
     constructorSignatures: [{
         parameters: [{name: 'myprop', type: {kind: Kind.String}}],
@@ -46,10 +42,6 @@ export const expected = {
                 returnType: { kind: Kind.String }
             }]
         }
-    },
-    {
-        name: "otherprop",
-        type: { kind: Kind.String }
     }
     ]
 }

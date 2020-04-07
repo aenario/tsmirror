@@ -6,13 +6,15 @@ export enum Kind {
     Boolean = "boolean",
     Enum = "enum",
     BigInt = "bigint",
+    ESSymbol = "essymbol",
+    UniqueESSymbol = "uniqueessymbol",
+    // literals
     StringLiteral = "stringliteral",
     NumberLiteral = "numberliteral",
     BooleanLiteral = "booleanliteral",
     EnumLiteral = "enumliteral",
     BigIntLiteral = "bigintliteral",
-    ESSymbol = "essymbol",
-    UniqueESSymbol = "uniqueessymbol",
+    // function returns types
     Void = "void",
     Undefined = "undefined",
     Null = "null",
@@ -107,6 +109,7 @@ interface ClassType<Refs> extends ObjectLike<Refs> {
     reflecttypeid: number,
     kind: Kind.Class,
     name: string,
+    constructorSignatures: Signature<Refs>[],
     classReference?: Refs,
     sourceFile?: string,
     implements: BaseReflectType<Refs>[] // TODO: should be InterfaceType[]
@@ -198,11 +201,8 @@ type BaseReflectType<Refs> =
     NonPrimitiveType
 
 
-// let x: ReflectType
-// let y: Common
-// y = x
-
 export interface InternalInjectedReference { runTypeInjectReferenceName: string }
+export type InternalSignature = Signature<InternalInjectedReference>
 export type InternalReflectType = BaseReflectType<InternalInjectedReference>
 export type InternalNameAndType = BaseNameAndType<InternalInjectedReference>
 export type ReflectType = BaseReflectType<Function>

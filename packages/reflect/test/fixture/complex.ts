@@ -7,6 +7,7 @@ interface I {
 interface I2 { }
 
 class A<T> {
+    constructor(constructorParam: string) {this.stringProp = constructorParam}
     anyProp: any
     unknownProp: unknown
     stringProp: string
@@ -39,15 +40,18 @@ class A<T> {
 }
 
 
-const a = new A<I2>()
-export const result = reflect(a)
+export const result = reflect<A<I2>>()
 export const expected: any = {
     kind: Kind.Class,
     name: "A",
     classReference: A,
     extends: [] as any[],
     implements: [] as any[],
-    typeArguments: [] as any[],
+    typeArguments: [reflect<I2>()],
+    constructorSignatures: [{
+        parameters: [{name: 'constructorParam', type: {kind: Kind.String}}],
+        returnType: result,
+    }],
     members: [
         { name: "anyProp", type: { kind: Kind.Any } },
         { name: "unknownProp", type: { kind: Kind.Unknown } },

@@ -1,6 +1,11 @@
 import * as ts from 'typescript'
 import * as path from 'path'
-import { InternalReflectType as ReflectType, Kind, InternalNameAndType as NameAndType, REFLECT_TYPE, InternalInjectedReference } from './type'
+import {
+  InternalReflectType as ReflectType,
+  InternalSignature as Signature,
+  InternalNameAndType as NameAndType,
+  Kind, REFLECT_TYPE, InternalInjectedReference
+} from './type'
 import * as util from 'util';
 import { realpathSync } from 'fs-extra';
 import { Y, circularHandler } from './circular';
@@ -48,25 +53,6 @@ function symbolArrayToNameTypes(toRunType: ToRunType, ctx: Context, symbols: ts.
   return results
 }
 
-function extractHeritageClauses(toRunType: ToRunType, ctx: Context, clauses: ts.NodeArray<ts.HeritageClause>): [ReflectType[], ReflectType[]] {
-  if (!clauses) return [[], []]
-  let implementedInterfaces = [] as ReflectType[]
-  let extendedClass = [] as ReflectType[]
-  clauses.forEach((clause) => {
-    if (clause.token == ts.SyntaxKind.ImplementsKeyword)
-      clause.types.forEach((clauseType) => {
-        const t = ctx.checker.getTypeAtLocation(clauseType)
-        implementedInterfaces.push(toRunType(t, ctx))
-      })
-    if (clause.token == ts.SyntaxKind.ExtendsKeyword)
-      clause.types.forEach((clauseType) => {
-        const t = ctx.checker.getTypeAtLocation(clauseType)
-        extendedClass.push(toRunType(t, ctx))
-      })
-  })
-  return [implementedInterfaces, extendedClass]
-}
-
 const KNOWN_REFERENCE = {
   'Array': 'Array',
   'Map': 'Map',
@@ -76,6 +62,18 @@ const KNOWN_REFERENCE = {
   'ReadonlyArray': 'Array',
 } as { [key: string]: string }
 
+
+function signaturesToRunType(toRunType: ToRunType, ctx: Context, sigs: readonly ts.Signature[]): Signature[] {
+  return sigs.map((s) => {
+    // @ts-ignore thisParameter is @internal
+    const thisType = s.thisParameter && ctx.checker.getTypeOfSymbolAtLocation(s.thisParameter, s.thisParameter.valueDeclaration)
+    return {
+      ...(thisType ? { thisType: toRunType(thisType, ctx) } : {}),
+      parameters: symbolArrayToNameTypes(toRunType, ctx, s.getParameters()),
+      returnType: toRunType(s.getReturnType(), ctx)
+    }
+  })
+}
 
 function interfaceTypetoRunType(toRunType: ToRunType, ctx: Context, type: ts.InterfaceType): ReflectType {
   const symbol = type.getSymbol()
@@ -138,18 +136,34 @@ function referenceObjectTypeToRunType(toRunType: ToRunType, ctx: Context, type: 
       // TODO: test extends
       // console.log(checkerBaseTypes", ctx.checker.getBaseTypes(type as unknown as ts.InterfaceType))
       let clauses = type.symbol.valueDeclaration.heritageClauses as ts.NodeArray<ts.HeritageClause>
-      let [implementedInterfaces, extendedClass] = extractHeritageClauses(toRunType, ctx, clauses);
+      let implementedInterfaces = [] as ReflectType[]
+      let extendedClass = [] as ReflectType[]
+      clauses && clauses.forEach((clause) => {
+        if (clause.token == ts.SyntaxKind.ImplementsKeyword)
+          clause.types.forEach((clauseType) => {
+            const t = ctx.checker.getTypeAtLocation(clauseType)
+            implementedInterfaces.push(toRunType(t, ctx))
+          })
+        if (clause.token == ts.SyntaxKind.ExtendsKeyword)
+          clause.types.forEach((clauseType) => {
+            const t = ctx.checker.getTypeAtLocation(clauseType)
+            extendedClass.push(toRunType(t, ctx))
+          })
+      })
 
       // can't get the class reference if it's not from this source file.
       let sameFile = ctx.reflectSourceFile === type.symbol.valueDeclaration.getSourceFile().fileName
       let classReference: InternalInjectedReference = { runTypeInjectReferenceName: name }
       let sourceFile = path.relative(path.dirname(ctx.reflectSourceFile), type.symbol.valueDeclaration.getSourceFile().fileName)
 
+      const constructorSignatures = ctx.checker.getTypeOfSymbolAtLocation(type.symbol, type.symbol.valueDeclaration).getConstructSignatures()
+
       return {
         ...(sameFile ? { classReference } : { sourceFile }),
         reflecttypeid: typeID(type),
         kind: Kind.Class,
-        typeArguments: [],
+        typeArguments: typeArguments,
+        constructorSignatures: signaturesToRunType(toRunType, ctx, constructorSignatures),
         implements: implementedInterfaces,
         extends: extendedClass,
         name: name,
@@ -237,15 +251,7 @@ function objectTypeToRunType(toRunType: ToRunType, ctx: Context, type: ts.Object
             reflecttypeid: typeID(type),
             kind: symbolFlags == ts.SymbolFlags.Method ? Kind.Method : Kind.Function,
             name: (name && name != '__type') ? name : '', // cleanup anonyms
-            signatures: ctx.checker.getSignaturesOfType(type, ts.SignatureKind.Call).map((s) => {
-              // @ts-ignore thisParameter is @internal
-              const thisType = s.thisParameter && ctx.checker.getTypeAtLocation(s.thisParameter.valueDeclaration)
-              return {
-                ...(thisType ? { thisType: toRunType(thisType, ctx) } : {}),
-                parameters: symbolArrayToNameTypes(toRunType, ctx, s.getParameters()),
-                returnType: toRunType(s.getReturnType(), ctx)
-              }
-            })
+            signatures: signaturesToRunType(toRunType, ctx, ctx.checker.getSignaturesOfType(type, ts.SignatureKind.Call))
           }
 
         default:
@@ -342,7 +348,7 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
       const values: any[] = []
       type.symbol && type.symbol.exports && type.symbol.exports.forEach((symbol) => {
         names.push(symbol.getName())
-        let type = ctx.checker.getTypeAtLocation(symbol.valueDeclaration)
+        let type = ctx.checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration)
         if (type.flags === (ts.TypeFlags.EnumLiteral | ts.TypeFlags.NumberLiteral))
           values.push((<ts.NumberLiteralType>type).value)
       })
@@ -394,7 +400,6 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
       const mapped = ctx.typeArgumentsMapping && ctx.typeArgumentsMapping.get(typeID(type))
       if (mapped) return mapped
 
-      // @TODO: throw ?
       let t = (<ts.TypeParameter>type)
       return { reflecttypeid: typeID(type), kind: Kind.TypeParameter, name: t.symbol && t.symbol.name }
 
@@ -429,7 +434,7 @@ function makeLiteralFromNode(checker: ts.TypeChecker, node: ts.Node): ts.Express
 
   const reflectType = Y(circularHandler({
     shouldMemo: (t: ts.Type, _: Context) => NOMEMOTYPES.indexOf(t.flags) === -1,
-    // @ts-ignore
+    // @ts-ignore ts.Type.id is @internal
     keyMaker: (t: ts.Type): number => t.id,
     circularMarker: (t: ts.Type): CircularMarker => ({ reflecttypeid: typeID(t), kind: Kind.Unknown }),
     replaceMarker: (m: CircularMarker, r) => Object.assign(m, r)
