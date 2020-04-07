@@ -7,7 +7,7 @@ import {
   Kind, REFLECT_TYPE, InternalInjectedReference
 } from './type'
 import * as util from 'util';
-import { realpathSync } from 'fs-extra';
+import { realpathSync } from 'fs';
 import { Y, circularHandler } from './circular';
 import { toLitteral } from './tolitteral';
 
