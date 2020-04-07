@@ -146,7 +146,7 @@ function referenceObjectTypeToRunType(toRunType: ToRunType, ctx: Context, type: 
       let sourceFile = path.relative(path.dirname(ctx.reflectSourceFile), type.symbol.valueDeclaration.getSourceFile().fileName)
 
       return {
-        ...(sameFile ? {classReference} : {sourceFile}),
+        ...(sameFile ? { classReference } : { sourceFile }),
         reflecttypeid: typeID(type),
         kind: Kind.Class,
         typeArguments: [],
@@ -237,10 +237,15 @@ function objectTypeToRunType(toRunType: ToRunType, ctx: Context, type: ts.Object
             reflecttypeid: typeID(type),
             kind: symbolFlags == ts.SymbolFlags.Method ? Kind.Method : Kind.Function,
             name: (name && name != '__type') ? name : '', // cleanup anonyms
-            signatures: ctx.checker.getSignaturesOfType(type, ts.SignatureKind.Call).map((s) => ({
-              parameters: symbolArrayToNameTypes(toRunType, ctx, s.getParameters()),
-              returnType: toRunType(s.getReturnType(), ctx)
-            }))
+            signatures: ctx.checker.getSignaturesOfType(type, ts.SignatureKind.Call).map((s) => {
+              // @ts-ignore thisParameter is @internal
+              const thisType = s.thisParameter && ctx.checker.getTypeAtLocation(s.thisParameter.valueDeclaration)
+              return {
+                ...(thisType ? { thisType: toRunType(thisType, ctx) } : {}),
+                parameters: symbolArrayToNameTypes(toRunType, ctx, s.getParameters()),
+                returnType: toRunType(s.getReturnType(), ctx)
+              }
+            })
           }
 
         default:
