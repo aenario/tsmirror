@@ -14,3 +14,4 @@ export const expected = {
     names: ['v1', 'v2', 'v3'],
     values: [0, 7, 8]
 }
+export const expectedReadable = 'enum'

@@ -12,3 +12,4 @@ export const expected = {
         { kind: Kind.Number },
     ]
 }
+export const expectedReadable = '[string, number, number]'

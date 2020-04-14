@@ -24,3 +24,4 @@ export const expected = {
         returnType: {kind: Kind.Void}
     }]
 }
+export const expectedReadable = '__function(p:I{prop:string}) => void'

@@ -9,3 +9,4 @@ export const expected = {
     type: Map,
     typeArguments: [{ kind: Kind.String }, { kind: Kind.Number }]
 }
+export const expectedReadable = 'Map<string, number>'

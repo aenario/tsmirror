@@ -26,3 +26,4 @@ export const expected = {
         returnType: { kind: Kind.String }
     }]
 }
+export const expectedReadable = 'A(a:string) => string +1signatures'

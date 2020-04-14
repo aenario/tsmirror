@@ -21,3 +21,5 @@ export const expected = {
         type: {kind: Kind.Boolean}
     }]
 }
+// TODO: this is not great
+export const expectedReadable = 'MyArray{extraArrayProp:boolean}'

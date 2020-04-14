@@ -17,7 +17,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "mocha --require ../../tsnoderegister.js --recursive  test/**/*.test.ts",
+    "test": "../../node_modules/.bin/mocha --require ../../tsnoderegister.js --recursive  test/**/*.test.ts",
     "build": "tsc"
   },
   "repository": {

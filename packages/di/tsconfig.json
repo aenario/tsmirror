@@ -1,10 +1,12 @@
 {
     "extends": "../../tsconfig.json",
     "compilerOptions": {
+        "experimentalDecorators": true,
         "outDir": "lib"
     },
     "include": [
         "src/*",
+        "test/*",
         "types/blns.d.ts",
     ],
 }

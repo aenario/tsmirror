@@ -28,8 +28,10 @@ export const expected = {
             ],
             sourceFile: "_imported.ts",
             typeArguments: []
+            // the class is not accessible, there is no classReference
         }
     }]
 }
 // @ts-ignore
 expected.members[1].type.constructorSignatures[0].returnType = expected.members[1].type
+export const expectedReadable = 'A{prop:string, someClass:SecretClass{name:string}}'

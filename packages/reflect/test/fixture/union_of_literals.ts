@@ -12,3 +12,4 @@ export const expected = {
         { kind: Kind.StringLiteral, value: "world" },
         { kind: Kind.NumberLiteral, value: 7 }]
 }
+export const expectedReadable = 'true|"hello"|"world"|7'

@@ -61,21 +61,26 @@ export function toLitteral(x: any): ts.Expression {
 
     let nameCounter = 0
     const identifiers: Map<string, ts.Expression> = new Map()
+    let hasCircular = false
 
     let res = Y(circularHandler({
         shouldMemo: (x: any) => (typeof x === 'object') && x && x.reflecttypeid && x.hasOwnProperty('kind') && -1 === NOMEMOTYPES.indexOf(x.kind) ,
         keyMaker: (x) => x.reflecttypeid,
         circularMarker: () => ts.createIdentifier('var' + (nameCounter++)),
-        replaceMarker: (x: ts.Identifier, res: ts.Expression) => { identifiers.set(x.text, res) }
+        useMarker: (variableName: ts.Identifier) => { hasCircular=true; return variableName},
+        replaceMarker: (variableName: ts.Identifier, res: ts.Expression) => {
+            identifiers.set(variableName.text, res);
+            return variableName
+        }
     }, _toLiteral))(x)
 
     if (identifiers.size == 0) return res
+    if (!hasCircular && identifiers.size == 1) return Array.from(identifiers.values())[0]
 
     let resName = ''
     const varTypes = Array.from(identifiers.entries()).reverse()
 
     // TODO: figure out a way to sort varTypes so we dont need to Object.assign
-
 
     const mod = ts.createModifiersFromModifierFlags(ts.ModifierFlags.None)
     const varDeclarations =

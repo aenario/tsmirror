@@ -1,5 +1,4 @@
-import { reflect } from '../../src/index'
-import { Kind } from '../../src/type'
+import { reflect, ReflectType, Kind } from '../../src/index'
 
 interface I {
     prop: string
@@ -40,7 +39,7 @@ class A<T> {
 }
 
 
-export const result = reflect<A<I2>>()
+export const result: ReflectType = reflect<A<I2>>()
 export const expected: any = {
     kind: Kind.Class,
     name: "A",
@@ -99,7 +98,7 @@ export const expected: any = {
         },
         {
             name: "functionProp", type: {
-                kind: Kind.Function, name: '',
+                kind: Kind.Function, name: 'anonymousFunction',
                 signatures: [{
                     parameters: [{ name: "arg0", type: { kind: Kind.String } } ],
                     returnType: { kind: Kind.Number }
@@ -120,7 +119,7 @@ export const expected: any = {
         },
         {
             name: "somemethod", type: {
-                kind: Kind.Method, name: "somemethod", signatures: [
+                kind: Kind.Function, name: "somemethod", signatures: [
                     {
                         parameters: [
                             { name: 'arg1', type: reflect<I>() },
@@ -133,7 +132,7 @@ export const expected: any = {
         },
         {
             name: "returnsVoid", type: {
-                kind: Kind.Method, name: "returnsVoid", signatures: [
+                kind: Kind.Function, name: "returnsVoid", signatures: [
                     {
                         parameters: [
                             { name: 'msg', type: { kind: Kind.String } },
@@ -145,7 +144,7 @@ export const expected: any = {
         },
         {
             name: "reportsError", type: {
-                kind: Kind.Method, name: "reportsError", signatures: [
+                kind: Kind.Function, name: "reportsError", signatures: [
                     {
                         parameters: [
                             { name: 'msg', type: { kind: Kind.String } },
@@ -157,9 +156,9 @@ export const expected: any = {
         },
         {
             name: "takeFunction", type: {
-                kind: Kind.Method, name: "takeFunction", signatures: [
+                kind: Kind.Function, name: "takeFunction", signatures: [
                     {
-                        parameters: [ {name: 'mapper', type: {kind: Kind.Function, name: '', signatures: [
+                        parameters: [ {name: 'mapper', type: {kind: Kind.Function, name: 'anonymousFunction', signatures: [
                             {
                                 parameters: [{ name: 'arg0', type: { kind: Kind.String } }],
                                 returnType: { kind: Kind.Number }
@@ -172,7 +171,7 @@ export const expected: any = {
         },
         {
             name: "returnsNull", type: {
-                kind: Kind.Method, name: "returnsNull", signatures: [
+                kind: Kind.Function, name: "returnsNull", signatures: [
                     {
                         parameters: [],
                         returnType: { kind: Kind.Null }
@@ -182,7 +181,7 @@ export const expected: any = {
         },
         {
             name: "returnsUndefined", type: {
-                kind: Kind.Method, name: "returnsUndefined", signatures: [
+                kind: Kind.Function, name: "returnsUndefined", signatures: [
                     {
                         parameters: [],
                         returnType: { kind: Kind.Undefined }

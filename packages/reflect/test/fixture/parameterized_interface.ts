@@ -23,3 +23,4 @@ export const expected = {
         }
     ]
 }
+export const expectedReadable = 'A{first:string, second:number}'

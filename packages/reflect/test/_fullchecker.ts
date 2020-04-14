@@ -1,4 +1,4 @@
-import { reflect } from "../../src/index";
+import { reflect } from "../src/index";
 import * as ts from 'typescript'
 
 reflect<ts.TypeChecker>()

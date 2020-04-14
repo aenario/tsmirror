@@ -15,3 +15,4 @@ export const expected = {
         type: { kind: Kind.String }
     }]
 }
+export const expectedReadable = 'A{prop:string}'

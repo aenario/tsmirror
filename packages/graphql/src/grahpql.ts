@@ -1,24 +1,26 @@
 import 'reflect-metadata'
-import { ReflectType, Kind, NameAndType } from '@tsmirror/reflect'
-import { getTypeOf, humanReadable } from '@tsmirror/reflect'
+import { ReflectType, Kind, reflecting } from '@tsmirror/reflect'
+import { humanReadable } from '@tsmirror/reflect'
 
 export interface GraphqlAPIDefinition {
     Query: { [name: string]: Function }
     Mutation: { [name: string]: Function }
 }
 
-// TODO: circularHandler
-export function graphql(def: GraphqlAPIDefinition): { client: any, schema: string } {
 
-    const rt: ReflectType | null = getTypeOf(def)
-    if (rt == null) throw new Error('the api definition have not been reflected') 
+export const graphql = reflecting((rt: ReflectType) => (_def: GraphqlAPIDefinition) => {
+    if (!rt.kind) throw new Error('the api definition have not been reflected') 
+    return _graphql(rt)
+})
+// TODO: circularHandler
+function _graphql(rt: ReflectType): { client: any, schema: string } {
     if (rt.kind != Kind.Interface) throw new Error('bad graphql argument')
 
-    const members: NameAndType[] = rt.members
+    const members = rt.members
     const queriesNT = members.find(({ name }) => name === 'Query')
     if (!queriesNT || queriesNT.type.kind != Kind.Interface) throw new Error('bad graphql queries argument')
 
-    const mutationsNT = members.find(({ name }) => name === 'Mutation') 
+    const mutationsNT = members.find(({ name }) => name === 'Mutation')
     if (!mutationsNT || mutationsNT.type.kind != Kind.Interface) throw new Error('bad graphql mutations argument')
 
     const queries = queriesNT.type
@@ -72,7 +74,6 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
             case Kind.Never:
             case Kind.Intersection:
             case Kind.Function:
-            case Kind.Method:
             case Kind.Tuple:
             case Kind.TypeParameter:
             case Kind.ESSymbol:
@@ -88,7 +89,7 @@ export function graphql(def: GraphqlAPIDefinition): { client: any, schema: strin
         return name
     }
 
-    const graphqlParameter = ({ name, type, default: def }: NameAndType) => {
+    const graphqlParameter = ({ name, type, default: def }: {name: string, type: ReflectType, default: ReflectType}) => {
         return name + ': ' + getName(type, true) + (def ? (' = ' + getName(def, true)) : '')
     }
 

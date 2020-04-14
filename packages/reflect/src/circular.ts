@@ -17,28 +17,39 @@ export const Y : WHY = <Args extends ArgsBase, Res> (mfn: MFN<Args, Res>) =>
 
 export function circularHandler<Args extends ArgsBase, Key, Marker extends Res, Res>(
     params: {
-        shouldMemo: (...args: Args) => boolean,
+        shouldMemo?: (...args: Args) => boolean,
         keyMaker: (...args: Args) => Key,
         circularMarker: (...args: Args) => Marker,
-        replaceMarker: (tmp: Marker, final: Res) => void
+        replaceMarker: (tmp: Marker, final: Res) => Res
+        useMarker?: (tmp: Marker) => Res,
+        useExisting?: (existing: Res) => Res,
     },
     mfn: MFN<Args, Res>,
 ) : MFN<Args, Res>  {
-    const lookup: Map<Key, Res> = new Map()
+    const inprogress: Map<Key, Marker> = new Map()
+    const resolved: Map<Key, Res> = new Map()
+
+    const shouldMemo = params.shouldMemo || (() => true)
+    const useMarker = params.useMarker || ((x: Marker) => x)
+    const useExisting = params.useExisting || ((x: Res) => x)
 
     return (fn: FN<Args, Res>, ...args: Args) => {
-        const shouldMemo = params.shouldMemo(...args);
-        if (!shouldMemo) return mfn(fn, ...args);
+        if (!shouldMemo(...args)) return mfn(fn, ...args);
 
         const key = params.keyMaker(...args);
 
-        let existing = lookup.get(key);
-        if(existing) return existing;
+        let existing = resolved.get(key);
+        if(existing) return useExisting(existing);
+
+        let existingInProgress = inprogress.get(key);
+        if(existingInProgress) return useMarker(existingInProgress);
 
         let marker = params.circularMarker(...args)
-        lookup.set(key, marker)
+        inprogress.set(key, marker)
         let res: Res = mfn(fn, ...args)
-        params.replaceMarker(marker, res)
-        return marker
+        inprogress.delete(key)
+        res = params.replaceMarker(marker, res)
+        resolved.set(key, res);
+        return res
     }
 }

@@ -1,5 +1,4 @@
-import { reflect } from '../../src/index'
-import { Kind } from '../../src/type'
+import { reflect, ReflectType, Kind } from '../../src/index'
 
 interface I {
     sayHello(s: string): string
@@ -16,14 +15,13 @@ class A extends B implements I {
     sayHello(s: string): string { return 'hello ' + this.myprop + s }
 }
 
-export const result = reflect<A>()
-export const BReflectType = reflect<B>()
-export const expected = {
+export const result: ReflectType = reflect<A>()
+export const expected: any = {
     kind: Kind.Class,
     name: 'A',
     classReference: A,
     typeArguments: [] as any[],
-    extends: [BReflectType],
+    extends: [reflect<B>()],
     implements: [reflect<I>()],
     constructorSignatures: [{
         parameters: [{name: 'myprop', type: {kind: Kind.String}}],
@@ -36,7 +34,7 @@ export const expected = {
     {
         name: "sayHello",
         type: {
-            kind: Kind.Method,
+            kind: Kind.Function,
             name: "sayHello",
             signatures: [{
                 parameters: [{
@@ -53,3 +51,4 @@ export const expected = {
     }
     ]
 }
+export const expectedReadable = 'A{myprop:string, sayHello:sayHello(s:string) => string, otherprop:string}'

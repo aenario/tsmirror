@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { reflected } from '../../src/index'
+import { reflected } from '../src/index'
 
 interface A {
     prop: string

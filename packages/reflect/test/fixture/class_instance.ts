@@ -1,5 +1,4 @@
-import { reflect } from '../../src/index'
-import { Kind } from '../../src/type'
+import { reflect, ReflectType, Kind } from '../../src/index'
 
 interface I {
     sayHello(s: string): string
@@ -13,8 +12,8 @@ class A implements I {
 
 const a = new A('zip');
 
-export const result = reflect(a)
-export const expected = {
+export const result: ReflectType = reflect(a)
+export const expected: any = {
     kind: Kind.Class,
     name: 'A',
     classReference: A,
@@ -32,7 +31,7 @@ export const expected = {
     {
         name: "sayHello",
         type: {
-            kind: Kind.Method,
+            kind: Kind.Function,
             name: "sayHello",
             signatures: [{
                 parameters: [{
@@ -45,3 +44,4 @@ export const expected = {
     }
     ]
 }
+export const expectedReadable = 'A{myprop:string, sayHello:sayHello(s:string) => string}'

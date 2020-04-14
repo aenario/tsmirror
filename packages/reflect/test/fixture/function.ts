@@ -34,3 +34,4 @@ export const expected = {
         returnType: interfaceType
     }]
 }
+export const expectedReadable = 'A(p:I{prop:string}, d:string, rest:Array<string>) => I{prop:string}'

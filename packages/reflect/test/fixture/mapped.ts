@@ -4,10 +4,11 @@ import { Kind } from "../../src/type";
 interface I {
     prop: string
 }
-
+/* ts included
 type Readonly<T> = {
     readonly [P in keyof T]: T[P];
 }
+*/
 
 export const result = reflect<Readonly<I>>()
 export const expected = {
@@ -21,3 +22,4 @@ export const expected = {
         }
     ]
 }
+export const expectedReadable = '{prop:any}'

@@ -1,8 +1,8 @@
-import { ReflectType, Kind, REFLECT_TYPE, NameAndType } from './type'
+import { ReflectType, Kind, REFLECT_TYPE, ReflectTypeOf } from './type'
 import { Y, circularHandler } from './circular'
 
 // TODO: complete signatures
-export function getTypeOf(x: any): ReflectType | null {
+export function getTypeOf<T extends any>(x: T): ReflectTypeOf<T> | null {
     let type: ReflectType | null = null
     // @ts-ignore
     if (typeof Reflect === "object" && typeof Reflect.getMetadata === "function") {
@@ -10,11 +10,14 @@ export function getTypeOf(x: any): ReflectType | null {
         type = Reflect.getMetadata(REFLECT_TYPE, x);
     }
     if (!type) type = x[Symbol.for(REFLECT_TYPE)] || null;
-    return type
+    return type as ReflectTypeOf<T>
 }
 
 
-function humanReadableNameAndTypes(humanReadable: (_: ReflectType) => string, nt: NameAndType[]): string {
+function humanReadableNameAndTypes(
+    humanReadable: (_: ReflectType) => string,
+    nt: {name: string, type: ReflectType}[]
+): string {
     return nt.map(({ name, type }) => name + ':' + humanReadable(type)).join(', ')
 }
 
@@ -55,12 +58,13 @@ function _humanReadable(humanReadable: (_: ReflectType) => string, t: ReflectTyp
             return '{' + humanReadableNameAndTypes(humanReadable, t.members) + '}'
 
         case Kind.Function:
-        case Kind.Method:
+        // case Kind.Method:
             return t.name + '(' + humanReadableNameAndTypes(humanReadable, t.signatures[0].parameters) + ') => ' + humanReadable(t.signatures[0].returnType)
                 + ((t.signatures.length > 1) ? (' +' + (t.signatures.length - 1) + 'signatures') : '')
 
         case Kind.Reference:
-            return t.type.name + '<' + t.typeArguments.map(humanReadable).join(', ') + '>'
+            let name = typeof t.type === 'function' ? t.type.name : t.type.runTypeInjectReferenceName
+            return name + '<' + t.typeArguments.map(humanReadable).join(', ') + '>'
 
         case Kind.Tuple:
             return '[' + t.typeArguments.map(humanReadable).join(', ') + ']'
@@ -77,33 +81,9 @@ export const humanReadable: (x: ReflectType) => string = Y(circularHandler({
     shouldMemo: (_: ReflectType) => true,
     keyMaker: (x: ReflectType) => x,
     // @ts-ignore
-    circularMarker: (x: ReflectType) => '[Circular ' + (x.name ? x.name : 'reference') + ' ]',
-    replaceMarker: () => { }
+    circularMarker: (x: ReflectType) => '[Circular ' + (x.name ? x.name : 'reference') + ']',
+    replaceMarker: (_marker: string, result: string) => result,
 }, _humanReadable))
-
-export function isLiteral(t: ReflectType): t is ReflectType & { kind: Kind.StringLiteral | Kind.NumberLiteral | Kind.BooleanLiteral | Kind.EnumLiteral | Kind.BigIntLiteral } {
-    switch (t.kind) {
-        case Kind.StringLiteral:
-        case Kind.NumberLiteral:
-        case Kind.BooleanLiteral:
-        case Kind.EnumLiteral:
-        case Kind.BigIntLiteral:
-            return true
-        default:
-            return false
-    }
-}
-
-export function getWidenedOfType(kind: Kind.StringLiteral | Kind.NumberLiteral | Kind.BooleanLiteral | Kind.BigIntLiteral)
-    : Kind.String | Kind.Number | Kind.Boolean | Kind.BigInt {
-    switch (kind) {
-        case Kind.StringLiteral: return Kind.String
-        case Kind.NumberLiteral: return Kind.Number
-        case Kind.BooleanLiteral: return Kind.Boolean
-        case Kind.BigIntLiteral: return Kind.BigInt
-        default: return null as never
-    }
-}
 
 export function getLiteralOfType(kind: Kind.String | Kind.Number | Kind.Boolean | Kind.Enum | Kind.BigInt): Kind {
     switch (kind) {
@@ -117,8 +97,11 @@ export function getLiteralOfType(kind: Kind.String | Kind.Number | Kind.Boolean 
 }
 
 
-export function isCompatible(needed: ReflectType, candidate: ReflectType, /* @internal */ circTypes?: ReflectType[]): boolean {
-    circTypes = circTypes || []
+// export function isCompatible(needed: ReflectType, candidate: ReflectType): boolean
+// export function isCompatible(needed: ReflectType, candidate: ReflectType, circTypes: ReflectType[]): boolean
+export function isCompatible(needed: ReflectType, candidate: ReflectType, circTypes?: ReflectType[]): boolean {
+    if(!circTypes) circTypes = []
+
     if (~circTypes.indexOf(needed)) return true // TODO think this through
     else circTypes.push(needed)
 
@@ -169,9 +152,8 @@ export function isCompatible(needed: ReflectType, candidate: ReflectType, /* @in
                     nname === cname && isCompatible(ntype, ctype, circTypes)))
 
         case Kind.Function:
-        case Kind.Method:
-            if (candidate.kind !== Kind.Function
-                && candidate.kind !== Kind.Method) return false
+        // case Kind.Method:
+            if (candidate.kind !== Kind.Function) return false
 
             // TODO: smarter multisignature ? (covariance ect...)
             return candidate.signatures.length === needed.signatures.length

@@ -16,7 +16,7 @@
   },
   "scripts": {
     "bootstrap": "lerna bootstrap",
-    "build": "lerna run build",
-    "test": "lerna run test"
+    "build": "lerna run build --no-bail",
+    "test": "lerna run test --no-bail"
   }
 }

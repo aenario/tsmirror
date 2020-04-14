@@ -13,7 +13,7 @@
         "stripInternal": true,
         "noImplicitAny": true,
         "resolveJsonModule": true,
-        "sourceMap": true,
+        "sourceMap": true
     },
     "exclude": [
         "node_modules",

@@ -25,3 +25,5 @@ export const expected = {
         returnType: { kind: Kind.String }
     }]
 }
+// TODO: include thisType in humanReadable
+export const expectedReadable = 'A(other:I{prop:string}) => string'

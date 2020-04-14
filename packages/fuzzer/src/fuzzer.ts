@@ -1,4 +1,4 @@
-import { ReflectType, NameAndType } from '@tsmirror/reflect'
+import { ReflectType, reflecting } from '@tsmirror/reflect'
 import { Kind, getTypeOf } from '@tsmirror/reflect'
 import blns from './blns'
 import { inspect } from 'util'
@@ -45,7 +45,7 @@ export function possibleValues(type: ReflectType): any[] {
         case Kind.Object:
         case Kind.Interface:
         case Kind.Class:
-            return type.members.reduce((acc: object[], { name, type }: NameAndType): object[] => {
+            return type.members.reduce((acc, { name, type }) => {
                 const tvalues = possibleValues(type)
                 return flatMap(acc, (accitem: any) =>
                     tvalues.map((tvaluesitem: any) =>
@@ -64,14 +64,14 @@ export function possibleValues(type: ReflectType): any[] {
             throw new Error('not supported yet' + type);
 
         case Kind.Tuple:
-            return type.typeArguments.reduce((acc: any[][], type): any[][] => {
+            return type.typeArguments.reduce((acc, type) => {
                 const tvalues = possibleValues(type)
                 return flatMap(acc, (accitem: any) =>
                     tvalues.map((tvaluesitem: any) =>
                         accitem.concat(tvaluesitem)
                     )
                 )
-            }, [[]])
+            }, [[]] as any[][])
 
         case Kind.Any:
         case Kind.Unknown:
@@ -79,16 +79,19 @@ export function possibleValues(type: ReflectType): any[] {
         case Kind.Never:
         case Kind.Intersection:
         case Kind.Function:
-        case Kind.Method:
+        //case Kind.Method:
         case Kind.TypeParameter:
         default:
             throw new Error(type.kind + ' type parameter not supported yet')
     }
 }
 
+export const fuzzer = reflecting((rt: ReflectType) => (runner: Function) => {
+    return _fuzzer(runner, rt)
+})
 
-export function fuzzer(runner: Function): void {
-    const t = getTypeOf(runner)
+function _fuzzer(runner: Function, type: ReflectType): void {
+    const t = type || getTypeOf(runner)
     if (t === null) throw new Error('runner function has not been reflected')
     if (t.kind !== Kind.Function) throw new Error('Only functions are accepted as runner, got ' + t)
     let sig = t.signatures[0]
@@ -99,7 +102,7 @@ export function fuzzer(runner: Function): void {
         try {
             runner.apply(null, args)
         } catch (err) {
-            throw new Error(err.message + ' with args ' + inspect(args, true, 5, false))
+            throw new Error(err.message + ' with args ' + inspect(args, false, 5, false))
         }
     })
 }

@@ -22,3 +22,4 @@ export const expected = {
         returnType: interfaceType
     }]
 }
+export const expectedReadable='__function(p:I{prop:string}) => I{prop:string}'

@@ -18,3 +18,5 @@ export const expected = {
         returnType: { kind: Kind.TypeParameter, name: 'T' }
     }]
 }
+export const expectedReadable = 'A(a:<T>) => <T>'
+export const expectedSameRef = [[result.signatures[0].parameters[0].type, result.signatures[0].returnType]]

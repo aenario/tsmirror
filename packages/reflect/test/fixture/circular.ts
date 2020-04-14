@@ -19,3 +19,6 @@ export let expected = {
         type: { kind: Kind.String }
     }]
 }
+export const expectedReadable = 'Folder{parent:[Circular Folder], name:string}'
+// @ts-ignore
+export const expectedSameRef = [[result, result.members[0].type]]

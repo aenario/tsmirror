@@ -1,17 +1,18 @@
 import * as ts from 'typescript'
 import * as path from 'path'
 import {
-  InternalReflectType as ReflectType,
-  InternalSignature as Signature,
-  InternalNameAndType as NameAndType,
+  ReflectType,
+  Signature,
   Kind, REFLECT_TYPE, InternalInjectedReference
 } from './type'
-import * as util from 'util';
+import { inspect } from 'util';
+import debug from './debug'
 import { realpathSync } from 'fs';
 import { Y, circularHandler } from './circular';
 import { toLitteral } from './tolitteral';
 
-interface Context {
+// @TODO move me elsewhere
+export interface Context {
   checker: ts.TypeChecker,
   reflectSourceFile: string,
   depth: number,
@@ -35,22 +36,11 @@ function logFlags(flags: number, x: 'TypeFlags' | 'SymbolFlags' | 'ObjectFlags')
   return x + '(' + out.substr(1) + ')'
 }
 
-// @ts-ignore
-const debug = !process.env.REFLECT_DEBUG ? (...args?: any[]) => { } :
-  (ctx: Context, ...args: any) => console.log(Array(ctx.depth).fill('').join(' '), ...args)
-
-function symbolArrayToNameTypes(toRunType: ToRunType, ctx: Context, symbols: ts.Symbol[]): NameAndType[] {
-  const results: NameAndType[] = [];
-  symbols.forEach((symbol) => {
-    const t = ctx.checker.getTypeAtLocation(symbol.valueDeclaration)
-    const res: NameAndType = { name: symbol.getName(), type: toRunType(t, ctx) }
-    if (symbol.valueDeclaration && ts.isParameter(symbol.valueDeclaration)) {
-      if (symbol.valueDeclaration.dotDotDotToken) res.rest = true
-      if (symbol.valueDeclaration.initializer) res.default = toRunType(ctx.checker.getTypeAtLocation(symbol.valueDeclaration.initializer), ctx)
-    }
-    results.push(res)
-  })
-  return results
+function symbolArrayToNameTypes(toRunType: ToRunType, ctx: Context, symbols: ts.Symbol[]) {
+  return symbols.map((symbol) => ({
+      name: symbol.getName(),
+      type: toRunType(ctx.checker.getTypeAtLocation(symbol.valueDeclaration), ctx) 
+    }))
 }
 
 const KNOWN_REFERENCE = {
@@ -69,7 +59,15 @@ function signaturesToRunType(toRunType: ToRunType, ctx: Context, sigs: readonly 
     const thisType = s.thisParameter && ctx.checker.getTypeOfSymbolAtLocation(s.thisParameter, s.thisParameter.valueDeclaration)
     return {
       ...(thisType ? { thisType: toRunType(thisType, ctx) } : {}),
-      parameters: symbolArrayToNameTypes(toRunType, ctx, s.getParameters()),
+      parameters: s.getParameters().map((symbol) => {
+        if (!ts.isParameter(symbol.valueDeclaration)) throw new Error('parameter is not a parameter')
+        return {
+          ...(symbol.valueDeclaration.dotDotDotToken ? { rest: true } : {}),
+          ...(symbol.valueDeclaration.initializer ? { default: toRunType(ctx.checker.getTypeAtLocation(symbol.valueDeclaration.initializer), ctx) } : {}),
+          name: symbol.getName(),
+          type: toRunType(ctx.checker.getTypeAtLocation(symbol.valueDeclaration), ctx)
+        }
+      }),
       returnType: toRunType(s.getReturnType(), ctx)
     }
   })
@@ -249,8 +247,8 @@ function objectTypeToRunType(toRunType: ToRunType, ctx: Context, type: ts.Object
           return {
             ...optional,
             reflecttypeid: typeID(type),
-            kind: symbolFlags == ts.SymbolFlags.Method ? Kind.Method : Kind.Function,
-            name: (name && name != '__type') ? name : '', // cleanup anonyms
+            kind: Kind.Function,
+            name: (name && name != '__type') ? name : 'anonymousFunction', // cleanup anonyms
             signatures: signaturesToRunType(toRunType, ctx, ctx.checker.getSignaturesOfType(type, ts.SignatureKind.Call))
           }
 
@@ -304,8 +302,6 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
   ctx = { ...ctx, depth: ctx.depth + 1 }
 
   const out: ReflectType = { reflecttypeid: typeID(type), kind: Kind.Unknown }
-
-  if (name == 'TypeChecker') return { reflecttypeid: typeID(type), kind: Kind.Unknown } // TODO remove me
 
   switch (flags) {
     case ts.TypeFlags.Any: return { ...out, kind: Kind.Any }
@@ -413,7 +409,7 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
       }
 
     case ts.TypeFlags.Index:
-      debug('REPORTME: Index', type)
+      debug(ctx, 'REPORTME: Index', type)
       return { reflecttypeid: typeID(type), kind: Kind.Index }
 
     default:
@@ -422,29 +418,24 @@ function _toRunType(toRunType: ToRunType, type: ts.Type, ctx: Context): ReflectT
 }
 
 type CircularMarker = ReflectType & { kind: Kind.Unknown }
-function makeLiteralFromNode(checker: ts.TypeChecker, node: ts.Node): ts.Expression {
-  if (!node) return ts.createObjectLiteral([]);
-
-  const tstype = checker.getTypeAtLocation(node);
+function toRunType(checker: ts.TypeChecker, fileName: string, t: ts.Type) {
   const ctx = {
-    reflectSourceFile: node.getSourceFile().fileName,
+    reflectSourceFile: fileName,
     checker: checker,
     depth: 0
   }
 
-  const reflectType = Y(circularHandler({
+  return Y(circularHandler({
     shouldMemo: (t: ts.Type, _: Context) => NOMEMOTYPES.indexOf(t.flags) === -1,
     // @ts-ignore ts.Type.id is @internal
     keyMaker: (t: ts.Type): number => t.id,
     circularMarker: (t: ts.Type): CircularMarker => ({ reflecttypeid: typeID(t), kind: Kind.Unknown }),
     replaceMarker: (m: CircularMarker, r) => Object.assign(m, r)
-  }, _toRunType))(tstype, ctx)
-
-  return toLitteral(reflectType);
+  }, _toRunType))(t, ctx)
 }
 
-const indexJs = path.join(__dirname, '..', 'lib', 'index.js');
-function isTsTransformerReflectImportExpression(node: ts.Node): node is ts.ImportDeclaration {
+/*const indexJs = path.join(__dirname, '..', 'lib', 'index.js');
+function isTsMirrorImportExpression(node: ts.Node): node is ts.ImportDeclaration {
   if (!ts.isImportDeclaration(node)) {
     return false;
   }
@@ -458,32 +449,17 @@ function isTsTransformerReflectImportExpression(node: ts.Node): node is ts.Impor
   } catch (e) {
     return false;
   }
+}*/
+
+function isReflectTypeSymbol(s: ts.Symbol) {
+  // s.valueDeclaration.getSourceFile().fileName
+  return -1 !== s.getName().indexOf('REFLECTING_SYMBOL') // TODO: make me safer
 }
 
-const indexTs = path.join(__dirname, '..', 'src', 'index.ts');
-const indexDTs = path.join(__dirname, '..', 'lib', 'index.d.ts');
-function isReflectCallExpression(node: ts.CallExpression, typeChecker: ts.TypeChecker): string | false {
-
-  const signature = typeChecker.getResolvedSignature(node)
-
-  if (typeof signature === 'undefined') return false
-
-  const { declaration } = signature
-
-  if (!declaration) return false
-  if (ts.isJSDocSignature(declaration)) return false
-  if (!declaration.name) return false
-
-  let declarationSource = path.resolve(declaration.getSourceFile().fileName)
-
-  if (declarationSource === indexTs || declarationSource === indexDTs) return declaration.name.getText()
-
-  // try again with realpath to support npm link
-  declarationSource = realpathSync(declarationSource)
-
-  if (declarationSource !== indexTs && declarationSource !== indexDTs) return false
-
-  return declaration.name.getText()
+function isReflectingFunction(t: ts.Type) {
+  return t.aliasSymbol?.getName() === 'Reflecting'
+    && t.isIntersection()
+    && t.types.find((st) => st.getProperties().find(isReflectTypeSymbol))
 }
 
 const metadataHelper = {
@@ -498,86 +474,108 @@ const metadataHelper = {
       };`
 };
 
-const symbolPropertyHelper = {
-  name: "reflect:withReflectProperty",
-  importName: "__withReflectProperty",
-  scoped: false,
-  priority: 3,
-  text: `
-      var __withReflectProperty = (this && this.__withReflectProperty) || function (k, v, t) {
-          if (typeof Object === "object" && typeof Object.defineProperty === "function") Object.defineProperty(t, Symbol.for(k), {value: v, enumerable: false, writable: false, configurable: false, });
-          return t;
-      };`
-};
+const indexTs = path.join(__dirname, '..', 'src', 'index.ts');
+const indexDTs = path.join(__dirname, '..', 'lib', 'index.d.ts');
+function isReflectFunction(declaration: ts.SignatureDeclaration | ts.JSDocSignature | undefined)
+  : { isFromReflect: boolean, isReflect: boolean, isReflected: boolean, name: string } {
+  let nope = { isFromReflect: false, isReflect: false, isReflected: false, name: '' }
+  if (!declaration) return nope
+  if (ts.isJSDocSignature(declaration)) return nope
+  if (!declaration.name) return nope
+  let name = declaration.name.getText()
+  let isReflect = name === 'reflect'
+  let isReflected = name === 'reflected'
+  let declarationSource = path.resolve(declaration.getSourceFile().fileName)
 
-function visitNodeAndChildren(node: ts.SourceFile, program: ts.Program, context: ts.TransformationContext): ts.SourceFile;
-function visitNodeAndChildren(node: ts.Node, program: ts.Program, context: ts.TransformationContext): ts.Node | undefined;
-function visitNodeAndChildren(node: ts.Node, program: ts.Program, context: ts.TransformationContext): ts.Node | undefined {
-  return ts.visitEachChild(visitNode(node, program, context), childNode => visitNodeAndChildren(childNode, program, context), context);
-}
-
-function visitNode(node: ts.SourceFile, program: ts.Program, context: ts.TransformationContext): ts.SourceFile;
-function visitNode(node: ts.Node, program: ts.Program, context: ts.TransformationContext): ts.Node | undefined;
-function visitNode(node: ts.Node, program: ts.Program, context: ts.TransformationContext): ts.Node | undefined | ts.Node[] {
-
-  if (isTsTransformerReflectImportExpression(node)) {
-    return; // delete import
+  if (declarationSource !== indexTs && declarationSource !== indexDTs) {
+    declarationSource = realpathSync(declarationSource) // try again with realpath to support npm link
+    if (declarationSource !== indexTs && declarationSource !== indexDTs) return nope
   }
 
-  if (!ts.isCallExpression(node)) {
-    return node
-  }
-
-  const typeChecker = program.getTypeChecker();
-  // @ts-ignore TODO remove me
-  typeChecker[util.inspect.custom] = () => "{thechecker}"
-
-  const whichFunction = isReflectCallExpression(node, typeChecker)
-  if (!whichFunction) return node;
-
-  const typeTarget = (node.typeArguments && node.typeArguments[0]) || node.arguments[0]
-  const typeDefinitionLiteral = makeLiteralFromNode(typeChecker, typeTarget);
-
-  // directly replace the function call with the type
-  if (whichFunction === 'reflect') return typeDefinitionLiteral
-
-  // use the helper to set Reflect.metadata from reflect-metadata module
-  if (whichFunction === 'reflected') {
-    context.requestEmitHelper(metadataHelper);
-    return ts.createCall(
-      ts.createIdentifier(metadataHelper.importName),
-    /*typeArguments*/ undefined,
-      [
-        ts.createStringLiteral(REFLECT_TYPE),
-        typeDefinitionLiteral,
-        ...node.arguments
-      ]
-    );
-  }
-
-  // use the helper to set the types as a hidden property on the object itself
-  if (whichFunction == 'withReflectProperty') {
-    context.requestEmitHelper(symbolPropertyHelper);
-    return ts.createCall(
-      ts.createIdentifier(symbolPropertyHelper.importName),
-    /*typeArguments*/ undefined,
-      [
-        ts.createStringLiteral(REFLECT_TYPE),
-        typeDefinitionLiteral,
-        ...node.arguments
-      ]
-    );
-  }
-
-  return ts.createThrow(
-    ts.createNew(
-      ts.createIdentifier('Error'),
-      /*typeArguments*/ undefined,
-      [ts.createStringLiteral(whichFunction + ' is not exported by ts-transformer-reflect (did you mean reflect or withReflectMetadata)')]
-    )
-  );
+  return { isFromReflect: true, isReflect, isReflected, name }
 }
 
 export default function transformer(program: ts.Program): ts.TransformerFactory<ts.SourceFile> {
-  return (context: ts.TransformationContext) => (file: ts.SourceFile) => visitNodeAndChildren(file, program, context);
+  return (context: ts.TransformationContext) => {
+    const checker = program.getTypeChecker();
+    // @ts-ignore TODO remove me
+    checker[inspect.custom] = () => "{thechecker}"
+
+    const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
+      const continueVisit = () => ts.visitEachChild(node, visitor, context)
+
+      // if (isTsMirrorImportExpression(node)) return undefined; // delete import
+      if (!ts.isCallExpression(node) && !ts.isDecorator(node)) return continueVisit();
+
+      const signature = checker.getResolvedSignature(node)
+      if (typeof signature === 'undefined') return continueVisit();
+
+      const { declaration } = signature
+      const { isFromReflect, isReflect, isReflected, name } = isReflectFunction(declaration)
+      const isReflecting = isReflectingFunction(checker.getTypeAtLocation(node.expression))
+
+      if (!isFromReflect && !isReflecting) return continueVisit();
+      const fileName = node.getSourceFile().fileName
+
+      if (isReflecting && ts.isDecorator(node)) {
+        if (!ts.isClassDeclaration(node.parent)) throw new Error('WTF: decorator parent is not a class')
+        let type = checker.getTypeAtLocation(node.parent)
+        let lit = toLitteral(toRunType(checker, fileName, type))
+        return ts.createDecorator(ts.createCall(node.expression, undefined, [lit]))
+      } else if (isReflecting && ts.isCallExpression(node)) {
+        let types = node.arguments.map((argExpression) => {
+          const tsType = checker.getTypeAtLocation(argExpression);
+          return toLitteral(toRunType(checker, fileName, tsType))
+        })
+        return ts.createCall(
+          ts.createCall(node.expression, [], types),
+          node.typeArguments,
+          node.arguments
+        )
+      }
+
+      if (ts.isDecorator(node)) throw new Error('using reflect or reflected as decorator.')
+
+      let typeDefinitionLiteral: ts.Expression = ts.createObjectLiteral([])
+      const typeTarget = (node.typeArguments && node.typeArguments[0]) || node.arguments[0]
+
+      if (typeTarget) {
+        const tsType = checker.getTypeAtLocation(typeTarget);
+        const fileName = typeTarget.getSourceFile().fileName
+        debug(null, 'start toRunType')
+        const reflectType = toRunType(checker, fileName, tsType);
+        debug(null, 'start toLitteral')
+        typeDefinitionLiteral = toLitteral(reflectType)
+        debug(null, 'done toLitteral')
+      }
+
+      if (isReflect) return typeDefinitionLiteral
+
+      if (isReflected) {
+        context.requestEmitHelper(metadataHelper);
+        return ts.createCall(
+          ts.createIdentifier(metadataHelper.importName),
+          /*typeArguments*/ undefined,
+          [
+            ts.createStringLiteral(REFLECT_TYPE),
+            typeDefinitionLiteral,
+            ...node.arguments
+          ]
+        );
+      }
+
+      if (isFromReflect && name !== 'reflecting') {
+        return ts.createImmediatelyInvokedArrowFunction([ts.createThrow(
+          ts.createNew(
+            ts.createIdentifier('Error'),
+            /*typeArguments*/ undefined,
+            [ts.createStringLiteral(name + ' is not exported by @tsmirror/reflect (did you mean reflect, reflected or reflecting)')]
+          ))]
+        );
+      }
+
+      return continueVisit();
+    }
+    return (file: ts.SourceFile) => ts.visitEachChild(file, visitor, context)
+  }
 }

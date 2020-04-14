@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 import { possibleValues, fuzzer } from '..'
 import { expect } from 'chai'
-import { reflect, reflected } from '@tsmirror/reflect'
+import { reflect } from '@tsmirror/reflect'
 
 enum MyEnum{
     A,
@@ -38,17 +38,17 @@ describe('fuzzer', function() {
 
     it('works', () => {
         const calls: any[][] = []
-        fuzzer(reflected(function(i: MyInterface, e: MyEnum) {
+        fuzzer(function(i: MyInterface, e: MyEnum) {
             calls.push([i, e])
-        }))
+        })
         expect(calls).to.have.length(8)
     })
 
     it('give arguments when throwing', () => {
         expect(function(){
-            fuzzer(reflected(function(i: MyInterface, e: MyEnum) {
+            fuzzer(function(i: MyInterface, e: MyEnum) {
                 if(i.enum == e && i.bool == false) throw new Error('oups')
-            }))
-        }).to.throw('with args')
+            })
+        }).to.throw('with args [ { bool: false, enum: 0 }, 0 ]')
     })
 })

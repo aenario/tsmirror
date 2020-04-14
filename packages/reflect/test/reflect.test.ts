@@ -24,7 +24,7 @@ describe("reflect", function() {
   .filter(({name}) => name[0] !== '_')
   .forEach(({tsFile, name}) => {
     it(name, function() {
-      const {result, expected, expectedReadable} = require(tsFile) // see tsnoderegister.js
+      const {result, expected, expectedReadable, expectedSameRef} = require(tsFile) // see tsnoderegister.js
 
       expect(result).to.deep.equal(expected)
 
@@ -34,6 +34,7 @@ describe("reflect", function() {
       // gutcheck: humanReadable does not throw
       let readable = humanReadable(result)
       if(expectedReadable) expect(readable).to.equal(expectedReadable)
+      if(expectedSameRef) expectedSameRef.forEach(([a, b] : [any, any]) => expect(a).to.equal(b))
     });
   })
 });

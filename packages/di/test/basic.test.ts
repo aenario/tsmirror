@@ -1,45 +1,64 @@
 import 'reflect-metadata'
 import { expect } from "chai";
-import { makeContainer } from '../src/container'
+import { rootContainer, injectable } from '../src/'
 import { reflected } from '@tsmirror/reflect'
+import { Scope } from '../src/types';
 
 
 interface Padawan {
     name: string,
-    isYoung: true,
     fullyTrained: false
 }
 
 interface Jedi {
     name: string,
-    isYoung: false,
+    fullyTrained: true,
+    darkSide: false
+}
+
+interface Sith {
+    name: string,
     fullyTrained: true
+    darkSide: true
 }
 
-function yodaTraining(p: Padawan): Jedi {
-    return {name: p.name, isYoung: false, fullyTrained: true}
-}
+// register yoda in the global handler
+injectable(Scope.Resolution)(
+    function yodaTraining(p: Padawan): Jedi {
+        return { name: p.name, darkSide: false, fullyTrained: true }
+    }
+)
 
-let luke: Padawan = {name: 'Luke', isYoung: true, fullyTrained: false}
-let ken: Padawan = {name: 'Ken', isYoung: true, fullyTrained: false}
+describe('functional API', function () {
 
-describe('basic', function() {
+    afterEach(() => { rootContainer.reset() })
 
-    const di = makeContainer();
-
-    it('does not throw on register with missing parameters', () => {
-        di.register(reflected(yodaTraining))
+    it('does not throw when creating not-yet-resolvable injectables', () => {
+        injectable(Scope.Resolution)(
+            function palpatineTraining(p: Padawan): Sith {
+                return { name: p.name, darkSide: true, fullyTrained: true }
+            }
+        )
     })
 
     it('does throw when it cant resolve', () => {
-        expect(function(){
-            di.get(reflected((p: Jedi) => { console.log(p) }))
+        expect(function () {
+            rootContainer.resolve(reflected((p: Jedi) => { console.log(p) }))
         }).to.throw()
     })
 
     it('returns a value when it resolve', () => {
-        di.register(reflected(() => luke))
-        const result = di.get(reflected(function needHero(p: Jedi) {
+        injectable(Scope.Resolution)(
+            function yodaTraining(p: Padawan): Jedi {
+                return { name: p.name, darkSide: false, fullyTrained: true }
+            })
+        injectable(Scope.Resolution)(
+            function obiwanRecruiting(): Padawan {
+                return {
+                    name: "Luke", fullyTrained: false
+                }
+            })
+        const result = rootContainer.resolve(reflected(function needHero(p: Jedi) {
             expect(p.name).to.equal('Luke')
             expect(p.fullyTrained).to.equal(true)
             return p.name
@@ -48,11 +67,65 @@ describe('basic', function() {
     })
 
     it('does throw if there are two factories for a type', () => {
-        di.register(reflected(() => ken))
-        expect(function(){
-            di.get(reflected((p: Padawan) => { console.log(p) }))
+        injectable(Scope.Resolution)(
+            function obiwanRecruiting(): Padawan {
+                return { name: "Luke", fullyTrained: false }
+            })
+        injectable(Scope.Resolution)(
+            function anotherPadawan() : Padawan {
+                return { name: 'Bob', fullyTrained: false }
+            })
+
+        expect(function () {
+            rootContainer.resolve(reflected((p: Padawan) => { console.log(p) }))
         }).to.throw().with.property('message')
-        .contains('( p )').contains('2')
+            .contains('(p)').contains('2')
+    })
+
+    it('does not throw if there are two factories for an arrayType', () => {
+        injectable(Scope.Resolution)(
+            function obiwanRecruiting(): Padawan {
+                return { name: "Luke", fullyTrained: false }
+            })
+        injectable(Scope.Resolution)(
+            function anotherPadawan(): Padawan {
+                return { name: 'Bob', fullyTrained: false }
+            })
+
+        rootContainer.resolve(reflected(function startASchool(allPadawans: Padawan[]) {
+            expect(allPadawans).to.have.length(2)
+        }));
+    })
+
+})
+
+describe('class API', function () {
+
+    afterEach(() => { rootContainer.reset() })
+
+    it('works', () => {
+
+        interface I { prop: string }
+
+        @injectable(Scope.Resolution)
+        // @ts-ignore A unused
+        class A implements I {
+            prop: string
+            constructor() { this.prop = 'hello'}
+        }
+
+        @injectable(Scope.Resolution)
+        class B {
+            otherprop: string
+            constructor(a : I) {
+                this.otherprop = a.prop
+            }
+        }
+
+        rootContainer.resolve(reflected(function(b: B) {
+            expect(b instanceof B).to.be.true
+            expect(b).to.have.property('otherprop', 'hello')
+        }))
     })
 
 })
