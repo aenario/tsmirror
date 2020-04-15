@@ -168,7 +168,7 @@ export const REFLECTING_STRING = 'tsmirror-reflect:reflecting'
 export const REFLECT_TYPE_SYMBOL = Symbol.for(REFLECT_TYPE)
 export const REFLECTING_SYMBOL = Symbol.for(REFLECTING_STRING)
 
-export type Reflecting<T extends (...args: any[]) => any> = T & { [REFLECTING_SYMBOL]: true }
+export type Reflecting<FN extends (...args: any[]) => any> = FN & { [REFLECTING_SYMBOL]: true }
 
 export type ReflectType =
     AnyType |

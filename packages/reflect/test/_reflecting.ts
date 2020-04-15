@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import { ReflectType, reflecting } from '../lib';
 
 interface A {
