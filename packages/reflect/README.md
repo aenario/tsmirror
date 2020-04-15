@@ -24,7 +24,7 @@ Here is a list of some cool usage for the ReflectType object.
 - Casting and checking: you can use the ReflectType to validate user input.
 - Tokenless Dependency Injection: see the @tsmirror/di package
 - Configurationless Fuzz-testing: see the @tsmirror/fuzzer package
--
+- Graphql générations from function's types: see the @tsmirror/graphql package
 
 ## How to use `reflect`
 
@@ -37,7 +37,7 @@ interface MyInterface {
   age: number;
 }
 
-let value : MyInterface = // ...
+let value : MyInterface = {id: '1', name: 'hello', age: 42}
 
 const myinterfaceType: ReflectType = reflect<MyInterface>();
 // or
@@ -55,9 +55,7 @@ console.log(myinterfaceType);
 } */
 ```
 
-You can also includes the ReflectType object as a metadata on the
-
-# Known Limitation
+## How to use `reflected`/`getTypeOf`
 
 The reflect function can only be called at a spot where the typescript
 compiler knows the type of the object, so this wont work :
@@ -69,6 +67,7 @@ function logType(arg: any) {
 
 logType(value);
 ```
+
 
 To sidestep this issue, you can use the `reflected`/`getTypeOf` combo
 
@@ -85,6 +84,26 @@ function logType(arg: any) {
 logType(value);
 ```
 
+The reflect type will be stored in the object's metadata using the [reflect-metadata](https://www.npmjs.com/package/reflect-metadata) package.
+
+
+## How to use the `reflecting` function
+
+While more hacky, the `reflecting` function allows a package to expose a clean API to their user.
+It is used in all other packages from the @tsmirror organisation.
+
+```ts
+
+const _logType = (rtype: ReflectType) => (arg: any) => console.log(arg, 'has type', rtype)
+const logType = reflecting(_logType) // logType: Reflecting<(arg: any) => void>
+
+logType(value)
+/* {id: '1', name: 'hello', age: 42} has type {
+    kind: "interface",
+    name: 'MyInterface',
+    members: [...] } */
+```
+
 ## How to use the custom transformer
 
 Unfortunately, TypeScript itself does not currently provide any easy way to use custom transformers (See https://github.com/Microsoft/TypeScript/issues/14419).
@@ -93,7 +112,7 @@ See [https://github.com/madou/typescript-transformer-handbook/#consuming-transfo
 
 # Note
 
-- The `reflect` function will only be compiled out as a call expression. ie. `reflect.toString()` will output the stub's function definition.
+- The `reflect` function will only be compiled out as a call expression. ie. `reflect.toString()` will output the stub function's definition.
 
 # License
 

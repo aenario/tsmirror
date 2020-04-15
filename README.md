@@ -41,20 +41,36 @@ console.log(myInterfaceType);
 } */
 ```
 
+```ts
+import { reflecting, ReflectType } from '@tsmirror/reflect';
+
+const _logType = (rtype: ReflectType) => (arg: any) => console.log(arg, 'has type', rtype)
+const logType = reflecting(_logType) // logType: Reflecting<(arg: any) => void>
+
+logType(value)
+/* {id: '1', name: 'hello', age: 42} has type {
+    kind: "interface",
+    name: 'MyInterface',
+    members: [...] } */
+```
+
 ## Other packages
+
 
 There is also some other packages wich use the ReflectType object for various purposes.
 
-### [@tsmirror/di](https://github.com/aenario/tsmirror/tree/master/packages/di) a toy Dependency injection container
+### [@tsmirror/di](https://github.com/aenario/tsmirror/tree/master/packages/di) a Dependency Injection container
 
 ```ts
-import { reflected } from '@tsmirror/reflect'
-import { makeContainer } from '@tsmirror/di'
+import { injectable, singleton, resolve } from '@tsmirror/di'
 
-const di = makeContainer()
-di.register(reflected(configProvider))
-di.register(reflected((c: Config): MyInterface => makeStuff(c)))
-di.get(reflected((m: MyInterface) => alert(m.name)))
+singleton((): Config => readConfigFromFile())
+injectable(function(c: Config): MyInterface {
+    return buildInterface(c))
+})
+resolve(function(m: MyInterface): void {
+  console.log(m.name)
+})
 ```
 
 ## [@tsmirror/fuzzer](https://github.com/aenario/tsmirror/tree/master/packages/fuzzer) a basic fuzzer
@@ -63,11 +79,9 @@ import { reflected } from "@tsmirror/reflect"
 import fuzzer from "@tsmirror/fuzzer"
 import assert from "assert"
 
-fuzzer(
-  reflected((x: string, y: number, z: string) => {
-    assert([x, y, z].concat("") === x + y + z, "Unexpected Array.concat behaviour")
-  })
-)
+fuzzer((x: string, y: number, z: string) => {
+  assert([x, y, z].concat("") === x + y + z, "Unexpected Array.concat behaviour")
+})
 ```
 
 ## [@tsmirror/graphql](https://github.com/aenario/tsmirror/tree/master/packages/graphql) a basic graphql generator
@@ -81,15 +95,15 @@ interface Jedi {
     fullyTrained: boolean
 }
 
-const APIDefinition = {
-    queries: {
+const {client, schema} = graphql({
+    Query: {
         jedis: (limit = 50): Jedi[] => limit > 10 ? []:[]
     },
-    mutations: {
+    Mutation: {
         createJedi: (j: Jedi) => j
     }
-}
-const {client, schema} = graphql(reflected(APIDefinition))
+})
+
 console.log(schema)
 /*
 input JediInput{
