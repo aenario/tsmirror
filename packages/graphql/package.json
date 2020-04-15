@@ -1,6 +1,6 @@
 {
   "name": "@tsmirror/graphql",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Toy Graphql generator based on @tsmirror/reflect",
   "author": "Romain <aenario@gmail.com>",
   "license": "MIT",
@@ -10,7 +10,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@tsmirror/reflect": "0.0.2",
+    "@tsmirror/reflect": "^0.0.3",
     "blns": "^2.0.4"
   },
   "files": [
