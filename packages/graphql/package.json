@@ -10,7 +10,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@tsmirror/reflect": "^0.0.2",
+    "@tsmirror/reflect": "0.0.2",
     "blns": "^2.0.4"
   },
   "files": [
@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/di#readme",
   "devDependencies": {
-    "apollo-server": "^2.11.0",
+    "apollo-server": "^2.12.0",
     "graphql": "^15.0.0"
   },
   "publishConfig": {

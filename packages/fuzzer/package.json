@@ -10,7 +10,7 @@
     "test": "test"
   },
   "dependencies": {
-    "@tsmirror/reflect": "^0.0.2",
+    "@tsmirror/reflect": "0.0.2",
     "blns": "^2.0.4"
   },
   "files": [
