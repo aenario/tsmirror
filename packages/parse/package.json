@@ -1,0 +1,36 @@
+{
+  "name": "@tsmirror/parse",
+  "version": "0.0.2",
+  "description": "Type safe json parser based on @tsmirror/reflect",
+  "author": "Romain <aenario@gmail.com>",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "dependencies": {
+    "@tsmirror/reflect": "^0.0.3",
+    "blns": "^2.0.4"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "../../node_modules/.bin/mocha --require ../../tsnoderegister.js --recursive  test/**/*.test.ts",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aenario/tsmirror/"
+  },
+  "bugs": {
+    "url": "https://github.com/aenario/tsmirror/issues"
+  },
+  "homepage": "https://github.com/aenario/tsmirror/tree/master/packages/di#readme",
+  "devDependencies": {
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
